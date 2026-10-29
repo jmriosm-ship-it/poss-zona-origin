@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useTurnos, useVentas, useAbonos, useCompras, useCreditos, useMovimientos, abrirCaja } from '../almacen.js'
 import { resumenTurno } from '../turno.js'
-import { dinero, fechaHora } from '../utils.js'
+import { useCajaActual } from '../equipo.js'
+import { useUsuario } from '../auth.js'
+import { cajaDe, dinero, fechaHora } from '../utils.js'
 
 // Franja de arriba de la Caja: estado del turno, abrir caja y botón para el cierre del día
 export default function BarraCaja({ onCerrar }) {
@@ -12,8 +14,10 @@ export default function BarraCaja({ onCerrar }) {
   const creditos = useCreditos()
   const movimientos = useMovimientos()
   const [inicial, setInicial] = useState('')
+  const usuario = useUsuario()
 
-  const turno = turnos.find((t) => !t.fechaCierre)
+  const miCaja = useCajaActual()
+  const turno = turnos.find((t) => !t.fechaCierre && cajaDe(t) === miCaja)
 
   if (!turno) {
     return (
@@ -21,7 +25,7 @@ export default function BarraCaja({ onCerrar }) {
         className="barra-caja cerrada"
         onSubmit={(e) => {
           e.preventDefault()
-          abrirCaja(Number(inicial) || 0)
+          abrirCaja(Number(inicial) || 0, usuario)
           setInicial('')
         }}
       >
@@ -42,7 +46,7 @@ export default function BarraCaja({ onCerrar }) {
   return (
     <div className="barra-caja">
       <span>
-        <strong>Caja abierta</strong> desde {fechaHora(turno.fechaApertura)} · {r.nVentas} ventas · {dinero(r.vendido)}
+        <strong>Caja abierta</strong> desde {fechaHora(turno.fechaApertura)} · {turno.abrioPor ? 'por ' + turno.abrioPor + ' ' : ''}con base {dinero(turno.inicial)} · {r.nVentas} {r.nVentas === 1 ? 'venta' : 'ventas'} · {dinero(r.vendido)}
       </span>
       <button className="btn chico" onClick={onCerrar}>
         Cerrar caja del día

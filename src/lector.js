@@ -9,7 +9,13 @@ const MAX_ENTRE_TECLAS = 60 // ms; una persona tecleando es mucho más lenta
 const MIN_LARGO = 4
 
 let contexto
+let sonidoActivo = true
+export const activarSonido = (activo) => {
+  sonidoActivo = activo
+}
+
 function pitar(bueno) {
+  if (!sonidoActivo) return
   try {
     contexto ||= new (window.AudioContext || window.webkitAudioContext)()
     const o = contexto.createOscillator()

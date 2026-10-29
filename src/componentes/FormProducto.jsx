@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import Icono from './Iconos.jsx'
-import { useProductos } from '../almacen.js'
+import { useConfig, useProductos } from '../almacen.js'
 import { imeiConDigitoValido, normalizarSerial, nuevoId, serialValido } from '../utils.js'
 
-export const CATEGORIAS = ['iPhone', 'MacBook', 'AppleWatch', 'Perfume', 'Monastery', 'Chevignon', 'Accesorio']
 export const CONDICIONES = ['Nuevo', 'Open box', 'Usado']
 
 const variantVacia = () => ({ id: nuevoId(), talla: '', color: '', codigo: '', stock: 0, minimo: 1, imeis: [] })
@@ -60,17 +59,18 @@ function GestorImeis({ imeis, onCambiar, ocupados }) {
 }
 
 // Ventana para crear o editar un producto con sus variantes (capacidad y color)
-export default function FormProducto({ producto, onGuardar, onCerrar }) {
+export default function FormProducto({ producto, categoriaInicial = '', onGuardar, onCerrar }) {
   const productos = useProductos()
+  const CATEGORIAS = useConfig().categorias
   const [p, setP] = useState(
     producto || {
       id: nuevoId(),
       nombre: '',
-      categoria: '',
+      categoria: categoriaInicial,
       marca: '',
       condicion: 'Nuevo',
       garantiaDias: '',
-      porImei: false,
+      porImei: /iphone|celular|macbook|watch/i.test(categoriaInicial),
       costo: '',
       precio: '',
       variantes: [variantVacia()],

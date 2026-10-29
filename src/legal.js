@@ -58,7 +58,7 @@ export function crearDocumentos(config) {
         {
           titulo: '2. Qué datos se tratan',
           lista: [
-            'De los usuarios del Sistema (administradores y vendedores): nombre y rol. El PIN no se guarda en texto: se guarda como una huella cifrada.',
+            'De los usuarios del Sistema (administradores y trabajadores): nombre y rol. El PIN no se guarda en texto: se guarda como una huella cifrada.',
             'De los clientes que el Negocio decida registrar: nombre, teléfono, correo, notas, historial de compras, puntos de fidelidad, ventas a crédito (fiado), abonos y la constancia de su autorización.',
             'De las ventas: productos, valores, medios de pago, vendedor, IMEI o serial de los equipos vendidos y garantía.',
             'De los proveedores: nombre, compras y pagos.',
@@ -103,7 +103,7 @@ export function crearDocumentos(config) {
         {
           titulo: '7. Seguridad',
           parrafos: [
-            'Las conexiones con la nube van cifradas (HTTPS), el acceso al Sistema exige PIN y cuenta, y cada rol ve solo lo que necesita (el vendedor no ve costos ni ganancias). Ningún sistema es 100% seguro: hay que cuidar las contraseñas y los PIN, y descargar copias de seguridad con frecuencia.',
+            'Las conexiones con la nube van cifradas (HTTPS), el acceso al Sistema exige PIN y cuenta, y cada rol ve solo lo que necesita (el trabajador no ve costos ni ganancias). Ningún sistema es 100% seguro: hay que cuidar las contraseñas y los PIN, y descargar copias de seguridad con frecuencia.',
           ],
         },
         {
@@ -179,7 +179,7 @@ export function crearDocumentos(config) {
         {
           titulo: '4. Usuarios y roles',
           parrafos: [
-            'El administrador ve y puede cambiar todo. El vendedor solo accede a la Caja, sus propias ventas, el inventario sin costos y los clientes. El administrador es responsable de crear, cambiar y retirar los usuarios y de la actividad hecha con ellos.',
+            'El administrador ve y puede cambiar todo. El trabajador solo accede a la Caja y al inventario sin costos. El administrador es responsable de crear, cambiar y retirar los usuarios y de la actividad hecha con ellos.',
           ],
         },
         {

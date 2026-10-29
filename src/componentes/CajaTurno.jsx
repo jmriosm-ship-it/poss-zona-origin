@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useTurnos, useVentas, useMovimientos, useAbonos, useCompras, useCreditos, abrirCaja, registrarMovimiento } from '../almacen.js'
 import { resumenTurno } from '../turno.js'
+import { useCajaActual } from '../equipo.js'
+import { useUsuario } from '../auth.js'
 import CierreCaja, { TicketCierre } from './CierreCaja.jsx'
-import { dinero, fechaHora } from '../utils.js'
+import { cajaDe, dinero, fechaHora } from '../utils.js'
 
 // Caja del día para el administrador: apertura, ingresos y egresos, y el cierre (se hace en CierreCaja)
 export default function CajaTurno() {
@@ -13,12 +15,14 @@ export default function CajaTurno() {
   const compras = useCompras()
   const creditos = useCreditos()
   const [inicial, setInicial] = useState('')
+  const usuario = useUsuario()
   const [mov, setMov] = useState({ tipo: 'egreso', valor: '', motivo: '' })
   const [cerrando, setCerrando] = useState(false)
   const [verUltimo, setVerUltimo] = useState(false)
 
-  const turno = turnos.find((t) => !t.fechaCierre)
-  const ultimo = turnos.find((t) => t.fechaCierre)
+  const miCaja = useCajaActual()
+  const turno = turnos.find((t) => !t.fechaCierre && cajaDe(t) === miCaja)
+  const ultimo = turnos.find((t) => t.fechaCierre && cajaDe(t) === miCaja)
 
   if (!turno) {
     return (
@@ -34,7 +38,7 @@ export default function CajaTurno() {
           className="inline-form"
           onSubmit={(e) => {
             e.preventDefault()
-            abrirCaja(Number(inicial) || 0)
+            abrirCaja(Number(inicial) || 0, usuario)
             setInicial('')
           }}
         >

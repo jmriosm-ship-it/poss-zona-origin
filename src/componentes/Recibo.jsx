@@ -1,5 +1,6 @@
+import FacturaVenta from './FacturaVenta.jsx'
 import { useConfig } from '../almacen.js'
-import { dinero, fechaHora, vencimientoGarantia } from '../utils.js'
+import { dinero, etiquetaVenta, fechaHora, vencimientoGarantia } from '../utils.js'
 
 const fechaCorta = (d) => d.toLocaleDateString('es-CO', { dateStyle: 'medium' })
 
@@ -17,8 +18,9 @@ export default function Recibo({ venta, onCerrar, textoCerrar = 'Nueva venta' })
           {config.direccion && <p className="centro">{config.direccion}</p>}
           {config.telefono && <p className="centro">Tel. {config.telefono}</p>}
           <hr />
-          <p className="centro">Recibo de venta #{String(venta.numero).padStart(5, '0')}</p>
+          <p className="centro">Recibo de venta {etiquetaVenta(venta)}</p>
           <p className="centro">{fechaHora(venta.fecha)}</p>
+          {venta.caja && <p className="centro">{venta.caja}</p>}
           {venta.vendedorNombre && <p className="centro">Atendió: {venta.vendedorNombre}</p>}
           {venta.clienteNombre && <p className="centro">Cliente: {venta.clienteNombre}</p>}
           <hr />
@@ -116,6 +118,7 @@ export default function Recibo({ venta, onCerrar, textoCerrar = 'Nueva venta' })
           <button className="btn" onClick={onCerrar}>
             {textoCerrar}
           </button>
+          <FacturaVenta venta={venta} />
           <button className="btn oscuro" onClick={() => window.print()}>
             Imprimir recibo
           </button>

@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import Icono from '../componentes/Iconos.jsx'
-import CajaTurno from '../componentes/CajaTurno.jsx'
 import DetalleVenta from '../componentes/DetalleVenta.jsx'
-import { useVentas } from '../almacen.js'
+import FiltroFechas, { rangoDe } from '../componentes/FiltroFechas.jsx'
+import { useVentas, useFacturas } from '../almacen.js'
 import { useUsuario } from '../auth.js'
-import { dinero, netoVenta, devuelto, fechaHora } from '../utils.js'
-
-const esHoy = (iso) => new Date(iso).toDateString() === new Date().toDateString()
+import { aFechaISO, dinero, enRango, etiquetaVenta, netoVenta, devuelto, fechaHora } from '../utils.js'
 
 function estadoVenta(v) {
   if (v.estado === 'anulada') return { clase: 'agotado', texto: 'Anulada' }
@@ -16,9 +14,12 @@ function estadoVenta(v) {
 
 export default function Ventas() {
   const todas = useVentas()
+  const facturas = useFacturas().filter((f) => !f.eliminada)
   const usuario = useUsuario()
   const admin = usuario?.rol === 'admin'
   const [periodo, setPeriodo] = useState('hoy')
+  const [desde, setDesde] = useState(aFechaISO(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
+  const [hasta, setHasta] = useState(aFechaISO(new Date()))
   const [buscar, setBuscar] = useState('')
   const [verId, setVerId] = useState(null)
 
@@ -29,9 +30,10 @@ export default function Ventas() {
   const qImei = texto.toUpperCase()
   // se busca por número de venta o por IMEI / serial (útil para ver la garantía de un equipo)
   const coincide = (v) =>
-    !texto || String(v.numero).includes(q) || (texto.length >= 4 && v.items.some((i) => (i.imeis || []).some((m) => m.includes(qImei))))
+    !texto || String(v.numero).includes(q) || etiquetaVenta(v).toLowerCase().includes(texto.toLowerCase()) || (texto.length >= 4 && v.items.some((i) => (i.imeis || []).some((m) => m.includes(qImei))))
   // al buscar se mira en todas las ventas, sin importar el filtro de fecha
-  const lista = ventas.filter((v) => (texto || periodo === 'todas' || esHoy(v.fecha)) && coincide(v))
+  const rango = rangoDe(periodo, desde, hasta)
+  const lista = ventas.filter((v) => (texto || enRango(v.fecha, rango)) && coincide(v))
 
   const vigentes = lista.filter((v) => v.estado !== 'anulada')
   const vendido = lista.reduce((s, v) => s + netoVenta(v), 0)
@@ -49,18 +51,9 @@ export default function Ventas() {
         </div>
       </div>
 
-      {admin && <CajaTurno />}
-
       <div className="panel">
         <div className="filtros">
-          <div className="segmentos">
-            <button className={periodo === 'hoy' ? 'activo' : ''} onClick={() => setPeriodo('hoy')}>
-              Hoy
-            </button>
-            <button className={periodo === 'todas' ? 'activo' : ''} onClick={() => setPeriodo('todas')}>
-              Todas
-            </button>
-          </div>
+          <FiltroFechas periodo={periodo} onPeriodo={setPeriodo} desde={desde} hasta={hasta} onDesde={setDesde} onHasta={setHasta} />
           <label className="buscar">
             <Icono nombre="buscar" tam={18} />
             <input placeholder="Buscar por número de venta o IMEI" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
@@ -80,6 +73,7 @@ export default function Ventas() {
                 <th>Pago</th>
                 <th>Total</th>
                 <th>Estado</th>
+                <th>Factura</th>
                 <th />
               </tr>
             </thead>
@@ -89,7 +83,7 @@ export default function Ventas() {
                 return (
                   <tr key={v.id}>
                     <td>
-                      <strong>#{String(v.numero).padStart(5, '0')}</strong>
+                      <strong>{etiquetaVenta(v)}</strong>
                     </td>
                     <td>{fechaHora(v.fecha)}</td>
                     {admin && <td>{v.vendedorNombre || '—'}</td>}
@@ -102,6 +96,7 @@ export default function Ventas() {
                     <td>
                       <span className={'badge ' + e.clase}>{e.texto}</span>
                     </td>
+                    <td>{facturas.filter((f) => f.ventaId === v.id).length > 0 ? <span className="badge ok">Con foto</span> : <span className="gris">—</span>}</td>
                     <td className="acciones">
                       <button className="enlace" onClick={() => setVerId(v.id)}>
                         Ver detalle

@@ -1,22 +1,32 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icono from '../componentes/Iconos.jsx'
 import ConfigPromos from '../componentes/ConfigPromos.jsx'
 import ConfigUsuarios from '../componentes/ConfigUsuarios.jsx'
-import { useConfig, guardarConfig, exportarTodo, importarTodo } from '../almacen.js'
+import ConfigRegistro from '../componentes/ConfigRegistro.jsx'
+import { useConfig, useProductos, guardarConfig, exportarTodo, importarTodo } from '../almacen.js'
+import { claveCategoria, listarCategorias } from '../categorias.js'
+import { abrirVisor } from '../visor.js'
+import { guardarNombreCaja, useCajaActual } from '../equipo.js'
 import { descargar } from '../csv.js'
+import { hacerCopia, hayCopias } from '../copias.js'
+import { fechaHora } from '../utils.js'
 
 const TABS = [
   ['negocio', 'Negocio'],
   ['puntos', 'Puntos'],
   ['credito', 'Crédito'],
+  ['categorias', 'Categorías'],
   ['promos', 'Promociones'],
   ['usuarios', 'Usuarios'],
+  ['registro', 'Registro'],
+  ['ayuda', 'Ayuda y legal'],
   ['datos', 'Datos y copias'],
 ]
 
 function Negocio() {
   const config = useConfig()
   const [f, setF] = useState({ ...config })
+  const [caja, setCaja] = useState(useCajaActual())
   const [guardado, setGuardado] = useState(false)
   const cambiar = (campo) => (e) => {
     setF({ ...f, [campo]: e.target.value })
@@ -28,8 +38,11 @@ function Negocio() {
       className="panel"
       onSubmit={(e) => {
         e.preventDefault()
+        guardarNombreCaja(caja)
         guardarConfig({
           negocio: f.negocio.trim() || 'Zona Originals',
+          // el nombre de la caja es de este computador, no se comparte
+          sonidoLector: f.sonidoLector !== false,
           nit: f.nit.trim(),
           titular: f.titular.trim(),
           identificacion: f.identificacion.trim(),
@@ -66,6 +79,21 @@ function Negocio() {
         <label className="ancho">
           <span>Dirección</span>
           <input value={f.direccion} onChange={cambiar('direccion')} />
+        </label>
+        <label>
+          <span>Nombre de esta caja (solo este computador: Caja 1, Caja 2…)</span>
+          <input value={caja} onChange={(e) => { setCaja(e.target.value); setGuardado(false) }} placeholder="Caja 1" />
+        </label>
+        <label className="ancho casilla">
+          <input
+            type="checkbox"
+            checked={f.sonidoLector !== false}
+            onChange={(e) => {
+              setF({ ...f, sonidoLector: e.target.checked })
+              setGuardado(false)
+            }}
+          />
+          <span>Pitido al leer con la pistola de códigos (solo suena con la pistola, no al escribir)</span>
         </label>
         <label className="ancho">
           <span>Mensaje al pie del recibo</span>
@@ -220,6 +248,219 @@ function ConfigCredito() {
   )
 }
 
+// Categorías permanentes de la tienda: se crean, se ordenan y se borran aquí
+function ConfigCategorias() {
+  const config = useConfig()
+  const productos = useProductos()
+  const lista = config.categorias
+  const [nueva, setNueva] = useState('')
+  const grupos = listarCategorias(productos, lista)
+  const cuantos = (nombre) => grupos.find((g) => g.clave === claveCategoria(nombre))?.productos || 0
+  const faltan = grupos.filter((g) => !g.enLista)
+  const guardar = (nuevaLista) => guardarConfig({ categorias: nuevaLista })
+
+  function agregar(nombre) {
+    const n = nombre.trim()
+    if (!n) return
+    if (lista.some((c) => claveCategoria(c) === claveCategoria(n))) return alert('Esa categoría ya existe.')
+    guardar([...lista, n])
+    setNueva('')
+  }
+
+  function mover(i, d) {
+    const j = i + d
+    if (j < 0 || j >= lista.length) return
+    const copia = [...lista]
+    ;[copia[i], copia[j]] = [copia[j], copia[i]]
+    guardar(copia)
+  }
+
+  function borrar(i) {
+    if (cuantos(lista[i]) > 0) return alert('Esta categoría tiene productos. Muévelos a otra categoría antes de borrarla.')
+    if (confirm(`¿Borrar la categoría "${lista[i]}"?`)) guardar(lista.filter((_, k) => k !== i))
+  }
+
+  return (
+    <div className="panel">
+      <div className="panel-cabeza">
+        <div>
+          <h2>Categorías</h2>
+          <p className="sub">Salen siempre en Inicio, Caja e Inventario, en este orden, aunque estén vacías.</p>
+        </div>
+      </div>
+
+      <form
+        className="inline-form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          agregar(nueva)
+        }}
+      >
+        <input placeholder="Nueva categoría (ej: Tablets)" value={nueva} onChange={(e) => setNueva(e.target.value)} style={{ minWidth: 240 }} />
+        <button className="btn oscuro chico" type="submit">
+          Agregar categoría
+        </button>
+      </form>
+
+      <table className="tabla" style={{ marginTop: 12 }}>
+        <thead>
+          <tr>
+            <th>Orden</th>
+            <th>Categoría</th>
+            <th>Productos</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {lista.map((c, i) => (
+            <tr key={c}>
+              <td>{i + 1}</td>
+              <td>
+                <strong>{c}</strong>
+              </td>
+              <td>{cuantos(c)}</td>
+              <td className="acciones">
+                <button className="enlace" disabled={i === 0} onClick={() => mover(i, -1)} aria-label="Subir">
+                  ↑ Subir
+                </button>
+                <button className="enlace" style={{ marginLeft: 10 }} disabled={i === lista.length - 1} onClick={() => mover(i, 1)} aria-label="Bajar">
+                  ↓ Bajar
+                </button>
+                <button className="enlace peligro" onClick={() => borrar(i)}>
+                  Borrar
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {faltan.length > 0 && (
+        <div className="aviso-legal" style={{ marginTop: 14 }}>
+          Hay productos en categorías que no están en la lista:{' '}
+          {faltan.map((g) => (
+            <button key={g.clave} className="enlace" style={{ marginRight: 12 }} onClick={() => agregar(g.nombre)}>
+              + Agregar "{g.nombre}" ({g.productos})
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Guía de uso y documentos legales
+function AyudaLegal() {
+  const config = useConfig()
+  const aceptado = config.legalAceptado
+  const botones = [
+    ['Guía de uso', 'Cómo se usa cada parte del sistema', 'ayuda', undefined],
+    ['Política de datos personales', 'Privacidad y tratamiento de datos', 'legal', 'privacidad'],
+    ['Términos y condiciones', 'Reglas de uso del sistema', 'legal', 'terminos'],
+    ['Garantía, cambios y devoluciones', 'Para mostrar a los clientes', 'legal', 'garantia'],
+    ['Condiciones del crédito', 'Reglas para vender a crédito', 'legal', 'credito'],
+    ['Autorización de clientes', 'Texto para firmar o enviar por WhatsApp', 'legal', 'clientes'],
+  ]
+  return (
+    <div className="panel">
+      <div className="panel-cabeza">
+        <div>
+          <h2>Ayuda y legal</h2>
+          <p className="sub">
+            {aceptado ? `Términos aceptados por ${aceptado.por} el ${new Date(aceptado.fecha).toLocaleDateString('es-CO', { dateStyle: 'medium' })}.` : 'Los términos todavía no se han aceptado.'}
+          </p>
+        </div>
+      </div>
+      <div className="tiles" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' }}>
+        {botones.map(([titulo, sub, tipo, doc]) => (
+          <button key={titulo} className="tile" style={{ minHeight: 110 }} onClick={() => abrirVisor(tipo, doc)}>
+            <strong style={{ fontSize: 18 }}>{titulo}</strong>
+            <span>{sub}</span>
+            <i aria-hidden="true">→</i>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Copias automáticas guardadas en el disco del computador (solo aplicación de escritorio)
+function CopiasAutomaticas() {
+  const [info, setInfo] = useState(null)
+  const [mensaje, setMensaje] = useState('')
+  const cargar = () => window.zoCopias.listar().then(setInfo)
+  useEffect(() => {
+    if (hayCopias()) cargar()
+  }, [])
+
+  if (!hayCopias()) {
+    return (
+      <p className="gris">
+        La copia automática funciona en la aplicación de escritorio (el instalador). Aquí en el navegador solo puedes descargar una copia a mano.
+      </p>
+    )
+  }
+
+  async function ahora() {
+    const r = await hacerCopia(true)
+    setMensaje(r?.ok ? 'Copia guardada.' : 'No se pudo guardar: ' + (r?.error || 'error'))
+    cargar()
+  }
+
+  async function restaurar(nombre) {
+    if (!confirm('Esto REEMPLAZA todo lo que hay ahora en este computador por la copia del ' + nombre.slice(6, 16) + '. ¿Continuar?')) return
+    try {
+      importarTodo(JSON.parse(await window.zoCopias.leer(nombre)))
+      alert('Copia restaurada.')
+    } catch {
+      alert('No se pudo leer esa copia.')
+    }
+  }
+
+  return (
+    <>
+      <p className="gris" style={{ marginBottom: 10 }}>
+        <strong>Copia automática activa:</strong> se guarda sola cada 10 minutos (si hubo cambios) en <code>{info?.carpeta || 'Documentos\\Zona Originals\\Copias'}</code>. Queda una por día de los últimos 30 días.
+      </p>
+      <div className="cabecera-acciones">
+        <button className="btn oscuro" onClick={ahora}>
+          Hacer copia ahora
+        </button>
+        <button className="btn" onClick={() => window.zoCopias.abrirCarpeta()}>
+          Abrir carpeta
+        </button>
+      </div>
+      {mensaje && <p className="gris">{mensaje}</p>}
+      {info?.copias?.length > 0 && (
+        <table className="tabla" style={{ marginTop: 10 }}>
+          <thead>
+            <tr>
+              <th>Día</th>
+              <th>Guardada</th>
+              <th>Tamaño</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {info.copias.slice(0, 10).map((c) => (
+              <tr key={c.nombre}>
+                <td>{c.nombre.slice(6, 16)}</td>
+                <td>{fechaHora(c.fecha)}</td>
+                <td>{Math.max(1, Math.round(c.tamano / 1024))} KB</td>
+                <td className="acciones">
+                  <button className="enlace" onClick={() => restaurar(c.nombre)}>
+                    Restaurar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  )
+}
+
 function Datos() {
   function exportar() {
     descargar(`zona-originals-copia-${new Date().toLocaleDateString('en-CA')}.json`, JSON.stringify(exportarTodo()), 'application/json')
@@ -245,6 +486,16 @@ function Datos() {
 
   return (
     <>
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div className="panel-cabeza">
+          <div>
+            <h2>Copia automática</h2>
+            <p className="sub">Para que no se pierda nada si falla el computador</p>
+          </div>
+        </div>
+        <CopiasAutomaticas />
+      </div>
+
       <div className="panel">
         <div className="panel-cabeza">
           <div>
@@ -292,6 +543,7 @@ const ESTADOS = {
 }
 
 function Nube({ nube }) {
+  const caja = useCajaActual()
   return (
     <div className="panel">
       <div className="panel-cabeza">
@@ -300,6 +552,9 @@ function Nube({ nube }) {
           <p className="sub">Los datos se guardan solos en internet y se comparten entre los computadores de la tienda</p>
         </div>
       </div>
+      <p className="gris" style={{ marginBottom: 10 }}>
+        Este computador es la <strong>{caja}</strong>. En cada computador inicia sesión con la <strong>misma cuenta</strong> y ponle un nombre distinto a su caja (Negocio → "Nombre de esta caja").
+      </p>
       {nube.correo ? (
         <>
           <div className="lineas">
@@ -362,8 +617,11 @@ export default function Configuracion({ nube }) {
       {tab === 'negocio' && <Negocio />}
       {tab === 'puntos' && <Puntos />}
       {tab === 'credito' && <ConfigCredito />}
+      {tab === 'categorias' && <ConfigCategorias />}
+      {tab === 'ayuda' && <AyudaLegal />}
       {tab === 'promos' && <ConfigPromos />}
       {tab === 'usuarios' && <ConfigUsuarios />}
+      {tab === 'registro' && <ConfigRegistro />}
       {tab === 'nube' && <Nube nube={nube} />}
       {tab === 'datos' && <Datos />}
     </>

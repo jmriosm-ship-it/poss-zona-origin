@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import Recibo from './Recibo.jsx'
+import FacturaVenta from './FacturaVenta.jsx'
 import { useVentas, devolverItems, anularVenta } from '../almacen.js'
 import { useUsuario } from '../auth.js'
-import { cantidadDevuelta, devuelto, dinero, fechaHora, imeisDevueltos, vencimientoGarantia } from '../utils.js'
+import { cantidadDevuelta, devuelto, dinero, etiquetaVenta, fechaHora, imeisDevueltos, vencimientoGarantia } from '../utils.js'
 
 // Detalle de una venta: devolver unidades, anular o reimprimir el recibo
 export default function DetalleVenta({ ventaId, onCerrar }) {
@@ -15,7 +16,7 @@ export default function DetalleVenta({ ventaId, onCerrar }) {
 
   if (!venta) return null
   const anulada = venta.estado === 'anulada'
-  const admin = usuario?.rol === 'admin'
+  const admin = usuario?.rol === 'admin' || Boolean(usuario?.permisos?.anular)
   const aCredito = Boolean(venta.credito)
   const factor = venta.subtotal > 0 ? venta.total / venta.subtotal : 1
 
@@ -48,7 +49,7 @@ export default function DetalleVenta({ ventaId, onCerrar }) {
       <div className="modal">
         <div className="panel-cabeza">
           <div>
-            <h2>Venta #{String(venta.numero).padStart(5, '0')}</h2>
+            <h2>Venta {etiquetaVenta(venta)}</h2>
             <p className="sub">
               {fechaHora(venta.fecha)} {venta.vendedorNombre && `· ${venta.vendedorNombre}`} {venta.clienteNombre && `· ${venta.clienteNombre}`}{' '}
               {anulada && '· ANULADA'}
@@ -180,6 +181,7 @@ export default function DetalleVenta({ ventaId, onCerrar }) {
               Anular venta
             </button>
           )}
+          <FacturaVenta venta={venta} />
           <button className="btn" onClick={() => setRecibo(true)}>
             Ver recibo
           </button>

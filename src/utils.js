@@ -194,3 +194,27 @@ export function resumenCredito(c, hoy = new Date()) {
 
 // Parte de lo cobrado que son intereses (así la ganancia suma los intereses a medida que se pagan)
 export const proporcionIntereses = (c) => (c.totalCredito > 0 ? c.intereses / c.totalCredito : 0)
+
+export const esHoyISO = (iso) => new Date(iso).toDateString() === new Date().toDateString()
+
+// ---------- Varias cajas (un computador por caja) ----------
+// Las ventas y movimientos antiguos no traen caja: cuentan como "Caja 1"
+export const cajaDe = (x) => (x && x.caja) || 'Caja 1'
+
+// "Caja 1" -> "C1", "Caja 2" -> "C2", "Caja Principal" -> "CP"
+export const prefijoCaja = (nombre) =>
+  String(nombre || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (/^\d+$/.test(w) ? w : w[0]))
+    .join('')
+    .toUpperCase() || 'C'
+
+// Número de ticket único aunque dos cajas vendan a la vez: "C1-00005" y "C2-00005" son ventas distintas
+export const etiquetaNumero = (numero, caja) => (caja ? prefijoCaja(caja) + '-' : '#') + String(numero || 0).padStart(5, '0')
+export const etiquetaVenta = (v) => etiquetaNumero(v.numero, v.caja)
+
+// Siguiente número de ticket de una caja (cada caja cuenta por separado)
+export const siguienteNumero = (ventas, caja) =>
+  ventas.filter((v) => (v.caja || '') === (caja || '')).reduce((m, v) => Math.max(m, v.numero), 0) + 1

@@ -22,7 +22,7 @@ export default function ContratoCredito({ credito, onCerrar }) {
           </p>
           <h3 style={{ textAlign: 'center', margin: '16px 0 4px' }}>CONDICIONES DEL CRÉDITO Y PLAN DE PAGOS</h3>
           <p style={{ textAlign: 'center', marginTop: 0 }} className="gris">
-            Venta #{String(credito.ventaNumero).padStart(5, '0')} · {fechaHora(credito.fecha)}
+            Venta {credito.ventaEtiqueta || '#' + String(credito.ventaNumero).padStart(5, '0')} · {fechaHora(credito.fecha)}
           </p>
 
           <table className="tabla contrato-datos">

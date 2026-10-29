@@ -2,7 +2,7 @@ import Icono from '../componentes/Iconos.jsx'
 import Grafica from '../componentes/Grafica.jsx'
 import { useProductos, useVentas, useGastos, useCompras, useClientes, useAbonos, useCreditos } from '../almacen.js'
 import { calcular } from '../reportes.js'
-import { dinero, fechaLarga, fechaHora, rangoPeriodo, resumenCredito, saldoCliente, saldoCompra } from '../utils.js'
+import { dinero, etiquetaVenta, fechaLarga, fechaHora, rangoPeriodo, resumenCredito, saldoCliente, saldoCompra } from '../utils.js'
 
 // Resumen del mes con datos reales
 export default function Resumen({ irA }) {
@@ -156,7 +156,7 @@ export default function Resumen({ irA }) {
                 {ultimas.map((v) => (
                   <tr key={v.id}>
                     <td>
-                      <strong>#{String(v.numero).padStart(5, '0')}</strong> {v.clienteNombre || ''}
+                      <strong>{etiquetaVenta(v)}</strong> {v.clienteNombre || ''}
                       <small className="gris">{fechaHora(v.fecha)}</small>
                     </td>
                     <td>{v.items.reduce((s, i) => s + i.cantidad, 0)}</td>

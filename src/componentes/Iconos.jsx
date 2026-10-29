@@ -8,6 +8,21 @@ const RUTAS = {
       <rect x="14" y="14" width="7" height="7" rx="1.5" />
     </>
   ),
+  movimientos: (
+    <>
+      <path d="M8 6h12M8 12h12M8 18h12" />
+      <circle cx="4" cy="6" r="1" />
+      <circle cx="4" cy="12" r="1" />
+      <circle cx="4" cy="18" r="1" />
+    </>
+  ),
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  inicio: (
+    <>
+      <path d="M3 11l9-8 9 8" />
+      <path d="M5 10v10h5v-6h4v6h5V10" />
+    </>
+  ),
   caja: (
     <>
       <rect x="4" y="3" width="16" height="18" rx="2" />

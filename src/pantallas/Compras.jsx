@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Icono from '../componentes/Iconos.jsx'
 import FormCompra from '../componentes/FormCompra.jsx'
+import FacturaVenta from '../componentes/FacturaVenta.jsx'
 import { useCompras, registrarCompra } from '../almacen.js'
 import { dinero, fechaLarga, pagadoCompra, saldoCompra } from '../utils.js'
 
@@ -41,6 +42,7 @@ export default function Compras() {
                 <th>Total</th>
                 <th>Pagado</th>
                 <th>Estado</th>
+                <th>Factura</th>
               </tr>
             </thead>
             <tbody>
@@ -60,6 +62,9 @@ export default function Compras() {
                     <td>{dinero(pagadoCompra(c))}</td>
                     <td>
                       {saldo > 0 ? <span className="badge bajo">Debes {dinero(saldo)}</span> : <span className="badge ok">Pagada</span>}
+                    </td>
+                    <td>
+                      <FacturaVenta compra={c} className="enlace" />
                     </td>
                   </tr>
                 )

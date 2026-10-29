@@ -1,5 +1,5 @@
 import { useCompras, useVentas } from '../almacen.js'
-import { fechaHora } from '../utils.js'
+import { etiquetaVenta, fechaHora } from '../utils.js'
 
 // Movimientos de un producto, armados a partir de compras, ventas, devoluciones y anulaciones
 export default function HistorialProducto({ producto, onCerrar }) {
@@ -16,7 +16,7 @@ export default function HistorialProducto({ producto, onCerrar }) {
       if (i.productoId === producto.id) movs.push({ fecha: c.fecha, tipo: 'Compra', variante: detalle(i.varianteId), cantidad: i.cantidad, nota: c.proveedor })
 
   for (const v of ventas) {
-    const num = '#' + String(v.numero).padStart(5, '0')
+    const num = etiquetaVenta(v)
     for (const i of v.items)
       if (i.productoId === producto.id) {
         movs.push({ fecha: v.fecha, tipo: 'Venta', variante: detalle(i.varianteId), cantidad: -i.cantidad, nota: num })

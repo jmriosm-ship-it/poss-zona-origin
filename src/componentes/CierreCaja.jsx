@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useTurnos, useVentas, useAbonos, useCompras, useCreditos, useMovimientos, useConfig, cerrarCaja } from '../almacen.js'
 import { resumenTurno, instantanea } from '../turno.js'
-import { dinero, fechaHora } from '../utils.js'
+import { useCajaActual } from '../equipo.js'
+import { useUsuario } from '../auth.js'
+import { cajaDe, dinero, fechaHora } from '../utils.js'
 
 // Ticket del cierre de caja (80 mm): sirve para imprimir y guardar en la carpeta del día
 export function TicketCierre({ turno, resumen, contado, esperado }) {
@@ -12,9 +14,11 @@ export function TicketCierre({ turno, resumen, contado, esperado }) {
   return (
     <div className="ticket">
       <h3>{config.negocio.toUpperCase()}</h3>
-      <p className="centro">CIERRE DE CAJA</p>
+      <p className="centro">CIERRE DE CAJA · {cajaDe(turno).toUpperCase()}</p>
       <p className="centro">Abierta: {fechaHora(turno.fechaApertura)}</p>
       <p className="centro">Cerrada: {fechaHora(turno.fechaCierre || new Date().toISOString())}</p>
+      {turno.abrioPor && <p className="centro">Abrió: {turno.abrioPor}</p>}
+      {turno.cerroPor && <p className="centro">Cerró: {turno.cerroPor}</p>}
       <hr />
       <div className="t-fila">
         <span>Ventas</span>
@@ -30,6 +34,14 @@ export function TicketCierre({ turno, resumen, contado, esperado }) {
           <span>{resumen.anuladas}</span>
         </div>
       )}
+      <div className="t-fila">
+        <span>Se empezó con</span>
+        <span>{dinero(resumen.inicial)}</span>
+      </div>
+      <div className="t-fila">
+        <span>Se terminó con</span>
+        <span>{dinero(contado)}</span>
+      </div>
       <div className="t-fila t-total">
         <span>VENDIDO</span>
         <span>{dinero(resumen.vendido)}</span>
@@ -132,7 +144,9 @@ export default function CierreCaja({ onTerminar }) {
   const [contado, setContado] = useState('')
   const [cerrado, setCerrado] = useState(null) // { turno, resumen, contado, esperado } tras confirmar
 
-  const turno = turnos.find((t) => !t.fechaCierre)
+  const miCaja = useCajaActual()
+  const usuario = useUsuario()
+  const turno = turnos.find((t) => !t.fechaCierre && cajaDe(t) === miCaja)
 
   if (cerrado) {
     return (
@@ -174,8 +188,8 @@ export default function CierreCaja({ onTerminar }) {
     e.preventDefault()
     if (contado === '') return
     const datos = { esperado: resumen.esperado, contado: Number(contado), resumen: instantanea(resumen) }
-    cerrarCaja(turno.id, datos)
-    setCerrado({ turno: { ...turno, fechaCierre: new Date().toISOString() }, resumen, contado: Number(contado), esperado: resumen.esperado })
+    cerrarCaja(turno.id, datos, usuario)
+    setCerrado({ turno: { ...turno, cerroPor: usuario?.nombre, fechaCierre: new Date().toISOString() }, resumen, contado: Number(contado), esperado: resumen.esperado })
   }
 
   return (

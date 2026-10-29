@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { useUsuarios } from './almacen.js'
+import { useUsuarios, almacenUsuarios, fijarActor, registrarAccion } from './almacen.js'
 
 // Sesión del usuario: vive mientras la ventana siga abierta
 let sesionId = null
@@ -9,9 +9,12 @@ try {
   /* sin sessionStorage */
 }
 const oyentes = new Set()
+fijarActor(almacenUsuarios.leer().find((u) => u.id === sesionId))
 
 export function iniciarSesion(id) {
   sesionId = id
+  fijarActor(almacenUsuarios.leer().find((u) => u.id === id))
+  if (id) registrarAccion('Inició sesión')
   try {
     if (id) sessionStorage.setItem('zo_sesion', id)
     else sessionStorage.removeItem('zo_sesion')
@@ -48,6 +51,15 @@ export async function hashPin(pin) {
   }
 }
 
-// El vendedor solo ve estas pantallas; el administrador ve todas
-const PANTALLAS_VENDEDOR = ['caja', 'inventario', 'ventas', 'clientes']
-export const puede = (usuario, pantalla) => usuario?.rol === 'admin' || PANTALLAS_VENDEDOR.includes(pantalla)
+// El trabajador solo ve estas pantallas; el administrador ve todas
+const PANTALLAS_VENDEDOR = ['inicio', 'caja', 'inventario']
+export const nombreRol = (rol) => (rol === 'admin' ? 'Administrador' : 'Trabajador')
+// El administrador puede darle más permisos a cada trabajador (pantallas extra, anular/devolver, descuento más alto)
+export const puede = (usuario, pantalla) => usuario?.rol === 'admin' || PANTALLAS_VENDEDOR.includes(pantalla) || Boolean(usuario?.permisos?.pantallas?.includes(pantalla))
+export const puedeHacer = (usuario, accion) => usuario?.rol === 'admin' || Boolean(usuario?.permisos?.[accion])
+// Descuento máximo (en %) que el trabajador puede dar solo; más que eso pide el PIN del administrador
+export const descuentoMaximo = (usuario) => (usuario?.rol === 'admin' ? 100 : Number(usuario?.permisos?.descuentoMax ?? 10))
+export async function verificarPinAdmin(pin) {
+  const h = await hashPin(String(pin).trim())
+  return almacenUsuarios.leer().some((u) => u.rol === 'admin' && u.pinHash === h)
+}

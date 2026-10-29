@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import Icono from '../componentes/Iconos.jsx'
-import { useClientes, useVentas, useAbonos, guardarCliente, borrarCliente } from '../almacen.js'
+import FacturasCliente from '../componentes/FacturasCliente.jsx'
+import { useClientes, useVentas, useAbonos, useFacturas, guardarCliente, borrarCliente } from '../almacen.js'
 import { useUsuario } from '../auth.js'
-import { dinero, fechaHora, netoVenta, nuevoId, puntosCliente, saldoCliente } from '../utils.js'
+import { dinero, etiquetaVenta, fechaHora, netoVenta, nuevoId, puntosCliente, saldoCliente } from '../utils.js'
 import { constanciaAutorizacion } from '../legal.js'
 import { abrirVisor } from '../visor.js'
 
@@ -17,6 +18,8 @@ export default function Clientes() {
   const [editando, setEditando] = useState(null) // null, 'nuevo' o un cliente
   const [form, setForm] = useState(VACIO)
   const [viendo, setViendo] = useState(null)
+  const [facturasDe, setFacturasDe] = useState(null) // { cliente, ventaId }
+  const facturas = useFacturas()
 
   const q = buscar.trim().toLowerCase()
   const lista = clientes
@@ -111,6 +114,9 @@ export default function Clientes() {
                   <td className="acciones">
                     <button className="enlace" onClick={() => setViendo(c)}>
                       Compras
+                    </button>
+                    <button className="enlace" style={{ marginLeft: 10 }} onClick={() => setFacturasDe({ cliente: c })}>
+                      Facturas ({facturas.filter((f) => f.clienteId === c.id).length})
                     </button>
                     <button className="enlace" style={{ marginLeft: 10 }} onClick={() => abrir(c)}>
                       Editar
@@ -215,16 +221,22 @@ export default function Clientes() {
                     <th>Unidades</th>
                     <th>Total</th>
                     <th>Estado</th>
+                    <th>Factura</th>
                   </tr>
                 </thead>
                 <tbody>
                   {historial.map((v) => (
                     <tr key={v.id}>
-                      <td>#{String(v.numero).padStart(5, '0')}</td>
+                      <td>{etiquetaVenta(v)}</td>
                       <td>{fechaHora(v.fecha)}</td>
                       <td>{v.items.map((i) => `${i.cantidad} ${i.nombre}`).join(', ')}</td>
                       <td>{dinero(v.total)}</td>
                       <td>{v.estado === 'anulada' ? 'Anulada' : 'Completada'}</td>
+                      <td>
+                        <button className="enlace" onClick={() => setFacturasDe({ cliente: viendo, ventaId: v.id })}>
+                          {facturas.filter((f) => f.ventaId === v.id).length ? 'Ver / agregar' : 'Agregar'}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -238,6 +250,8 @@ export default function Clientes() {
           </div>
         </div>
       )}
+
+      {facturasDe && <FacturasCliente cliente={facturasDe.cliente} ventaId={facturasDe.ventaId} onCerrar={() => setFacturasDe(null)} />}
     </>
   )
 }

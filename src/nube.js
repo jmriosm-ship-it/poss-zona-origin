@@ -52,6 +52,16 @@ export function backendSupabase(cliente) {
       }
       return salida
     },
+    // lo que hay ahora en la nube para esos registros (sirve para saber si otro computador guardó algo más nuevo)
+    async verificar(coleccion, ids) {
+      const salida = []
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await cliente.from('registros').select('id,t').eq('coleccion', coleccion).in('id', ids.slice(i, i + 100))
+        if (error) throw error
+        salida.push(...data)
+      }
+      return salida
+    },
     // sube registros; la función de la base de datos no pisa versiones más nuevas
     async subir(filas) {
       const { error } = await cliente.rpc('subir_registros', {

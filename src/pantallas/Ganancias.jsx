@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import Grafica from '../componentes/Grafica.jsx'
+import Calendario from '../componentes/Calendario.jsx'
 import { useVentas, useGastos, useCreditos, registrarGasto, borrarGasto } from '../almacen.js'
 import { calcular } from '../reportes.js'
-import { PERIODOS, dinero, fechaLarga, rangoPeriodo } from '../utils.js'
+import { PERIODOS, aFechaISO, dinero, fechaLarga, rangoPeriodo } from '../utils.js'
 
 const CATEGORIAS_GASTO = ['Arriendo', 'Servicios', 'Nómina', 'Publicidad', 'Bolsas y empaques', 'Transporte', 'Otros']
 
@@ -11,9 +12,14 @@ export default function Ganancias() {
   const gastos = useGastos()
   const creditos = useCreditos()
   const [periodo, setPeriodo] = useState('mes')
+  const [desde, setDesde] = useState(aFechaISO(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
+  const [hasta, setHasta] = useState(aFechaISO(new Date()))
   const [form, setForm] = useState({ categoria: CATEGORIAS_GASTO[0], concepto: '', valor: '' })
 
-  const r = calcular(ventas, gastos, rangoPeriodo(periodo), creditos)
+  // "Fechas": del día de inicio al día final, incluido
+  const rangoFechas = [new Date(desde + 'T00:00:00'), new Date(new Date(hasta + 'T00:00:00').getTime() + 864e5)]
+  const rango = periodo === 'rango' ? rangoFechas : rangoPeriodo(periodo === 'calendario' ? 'mes' : periodo)
+  const r = calcular(ventas, gastos, rango, creditos)
   const margen = r.ingresos > 0 ? Math.round((r.neta / r.ingresos) * 100) : 0
 
   function agregarGasto(e) {
@@ -23,7 +29,8 @@ export default function Ganancias() {
     setForm({ ...form, concepto: '', valor: '' })
   }
 
-  return (
+  const opciones = [...PERIODOS, ['rango', 'Fechas'], ['calendario', 'Calendario']]
+  const encabezado = (
     <>
       <div className="cabecera">
         <div>
@@ -32,13 +39,34 @@ export default function Ganancias() {
           <p className="subtitulo">Ventas, menos lo que costó la mercancía, menos los gastos del local.</p>
         </div>
         <div className="segmentos">
-          {PERIODOS.map(([k, t]) => (
+          {opciones.map(([k, t]) => (
             <button key={k} className={periodo === k ? 'activo' : ''} onClick={() => setPeriodo(k)}>
               {t}
             </button>
           ))}
         </div>
       </div>
+      {periodo === 'rango' && (
+        <div className="rango-fechas">
+          Desde <input type="date" value={desde} max={hasta} onChange={(e) => e.target.value && setDesde(e.target.value)} />
+          hasta <input type="date" value={hasta} min={desde} onChange={(e) => e.target.value && setHasta(e.target.value)} />
+        </div>
+      )}
+    </>
+  )
+
+  if (periodo === 'calendario') {
+    return (
+      <>
+        {encabezado}
+        <Calendario />
+      </>
+    )
+  }
+
+  return (
+    <>
+      {encabezado}
 
       <div className="tarjetas">
         <div className="tarjeta">

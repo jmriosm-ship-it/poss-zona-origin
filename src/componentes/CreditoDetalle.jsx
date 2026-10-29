@@ -35,7 +35,7 @@ export default function CreditoDetalle({ creditoId, onCerrar, onPagar }) {
           <div>
             <h2>Crédito · {credito.clienteNombre}</h2>
             <p className="sub">
-              Venta #{String(credito.ventaNumero).padStart(5, '0')} · {credito.plazo} cuotas de {dinero(credito.cuotaValor)} · {credito.tasa}% mensual
+              Venta {credito.ventaEtiqueta || '#' + String(credito.ventaNumero).padStart(5, '0')} · {credito.plazo} cuotas de {dinero(credito.cuotaValor)} · {credito.tasa}% mensual
             </p>
           </div>
           <button className="boton-icono" onClick={onCerrar} aria-label="Cerrar">

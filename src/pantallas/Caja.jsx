@@ -5,12 +5,21 @@ import Recibo from '../componentes/Recibo.jsx'
 import ElegirImei from '../componentes/ElegirImei.jsx'
 import BarraCaja from '../componentes/BarraCaja.jsx'
 import CierreCaja from '../componentes/CierreCaja.jsx'
-import { pitar, useLector } from '../lector.js'
-import { useProductos, useClientes, useVentas, usePromos, useConfig, registrarVenta, registrarCredito, guardarCliente } from '../almacen.js'
-import { useUsuario } from '../auth.js'
-import { armarCuotas, dinero, mejorPromo, puntosCliente } from '../utils.js'
+import CajaTurno from '../componentes/CajaTurno.jsx'
+import AbrirCajaModal from '../componentes/AbrirCajaModal.jsx'
+import SacarCupo from '../componentes/SacarCupo.jsx'
+import PagarSueldo from '../componentes/PagarSueldo.jsx'
+import HistorialCierres from '../componentes/HistorialCierres.jsx'
+import BuscadorProductos from '../componentes/BuscadorProductos.jsx'
+import { activarSonido, pitar, useLector } from '../lector.js'
+import { listarCategorias } from '../categorias.js'
+import { useProductos, useClientes, useVentas, usePromos, useConfig, useTurnos, registrarVenta, registrarCredito, guardarCliente, registrarAccion } from '../almacen.js'
+import { useUsuario, descuentoMaximo, verificarPinAdmin } from '../auth.js'
+import { armarCuotas, cajaDe, dinero, etiquetaNumero, fechaHora, mejorPromo, puntosCliente, siguienteNumero } from '../utils.js'
+import { useCajaActual } from '../equipo.js'
 
 const limitar = (n, min, max) => Math.min(max, Math.max(min, n))
+const esCampo = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')
 
 export default function Caja() {
   const productos = useProductos()
@@ -19,20 +28,44 @@ export default function Caja() {
   const promos = usePromos()
   const config = useConfig()
   const usuario = useUsuario()
+  const miCaja = useCajaActual()
+  const turnos = useTurnos()
+  const [noAbrir, setNoAbrir] = useState(false)
+  const cajaCerrada = !turnos.some((t) => !t.fechaCierre && cajaDe(t) === miCaja)
 
   const [buscar, setBuscar] = useState('')
+  const [sug, setSug] = useState(-1) // sugerencia resaltada con las flechas
   const [carrito, setCarrito] = useState([])
+  const [seleccion, setSeleccion] = useState(null) // varianteId de la fila marcada
   const [clienteId, setClienteId] = useState('')
   const [descuento, setDescuento] = useState('')
   const [tipoDesc, setTipoDesc] = useState('%')
   const [usarPuntos, setUsarPuntos] = useState('')
   const [cobrando, setCobrando] = useState(false)
   const [recibo, setRecibo] = useState(null)
-  const [elegir, setElegir] = useState(null) // { producto, variante, resaltar }: ventana para elegir IMEI
+  const [elegir, setElegir] = useState(null) // { producto, variante }: ventana para elegir IMEI
+  const [catalogo, setCatalogo] = useState(false)
   const [aviso, setAviso] = useState(null) // { texto, error }: lo último que leyó la pistola
   const [cierre, setCierre] = useState(false)
+  const [cupoAbierto, setCupoAbierto] = useState(false)
+  const [sueldoAbierto, setSueldoAbierto] = useState(false)
+  const [descOk, setDescOk] = useState(0) // descuento autorizado con el PIN del administrador
+  const [vista, setVista] = useState('vender') // 'vender' o 'caja' (la caja del día completa)
   const entrada = useRef(null)
   const temporizadorAviso = useRef(null)
+  const tiempos = useRef([]) // momentos en que se escribió cada carácter en el buscador: así se sabe si fue la pistola o una persona
+
+  // el pitido solo suena con la pistola, y se puede apagar en Configuración
+  useEffect(() => {
+    activarSonido(config.sonidoLector !== false)
+  }, [config.sonidoLector])
+
+  // la pistola escribe el código entero en una ráfaga; una persona teclea mucho más lento
+  function vinoDeLaPistola() {
+    const t = tiempos.current
+    if (t.length < 4) return false
+    return (t[t.length - 1] - t[0]) / (t.length - 1) < 50
+  }
 
   function avisar(texto, error = false) {
     setAviso({ texto, error })
@@ -45,48 +78,83 @@ export default function Caja() {
     [productos],
   )
   const q = buscar.trim().toLowerCase()
-  const resultados = filas
-    .filter(
-      ({ producto, variante }) =>
-        !q ||
-        producto.nombre.toLowerCase().includes(q) ||
-        producto.categoria.toLowerCase().includes(q) ||
-        variante.codigo.toLowerCase().includes(q) ||
-        (variante.imeis || []).some((m) => m.toLowerCase().includes(q)),
-    )
-    .slice(0, 60)
+  const categorias = listarCategorias(productos, config.categorias).filter((c) => c.productos > 0)
+  // sugerencias mientras se escribe
+  const sugerencias = q
+    ? filas
+        .filter(
+          ({ producto, variante }) =>
+            producto.nombre.toLowerCase().includes(q) ||
+            producto.categoria.toLowerCase().includes(q) ||
+            variante.codigo.toLowerCase().includes(q) ||
+            (variante.imeis || []).some((m) => m.toLowerCase().includes(q)),
+        )
+        .slice(0, 8)
+    : []
 
   const cliente = clientes.find((c) => c.id === clienteId) || null
   const puntosDisponibles = cliente ? puntosCliente(cliente.id, ventas) : 0
+  const etiquetaTicket = etiquetaNumero(siguienteNumero(ventas, miCaja), miCaja)
 
   // Promociones automáticas, descuento manual y puntos
   const lineas = carrito.map((i) => ({ ...i, promo: mejorPromo(i, promos) }))
+  const articulos = carrito.reduce((s, i) => s + i.cantidad, 0)
   const subtotal = carrito.reduce((s, i) => s + i.precio * i.cantidad, 0)
   const descPromo = lineas.reduce((s, l) => s + l.promo.valor, 0)
   const base = subtotal - descPromo
   const d = Number(descuento) || 0
   const descManual = limitar(Math.round(tipoDesc === '%' ? (base * d) / 100 : d), 0, base)
+  const limiteDesc = Math.round((base * descuentoMaximo(usuario)) / 100)
+  const exigePin = descManual > limiteDesc && descManual > descOk
+  async function autorizarDescuento() {
+    const pin = prompt('Este descuento pasa el límite de ' + descuentoMaximo(usuario) + '%. Pide al administrador que escriba su PIN:')
+    if (!pin) return
+    if (await verificarPinAdmin(pin)) {
+      setDescOk(descManual)
+      setCobrando(false)
+      registrarAccion('Descuento autorizado con PIN de administrador', '$' + descManual + ' en un ticket de $' + base)
+    } else alert('PIN incorrecto.')
+  }
   const maxPuntos = config.valorPunto > 0 ? Math.floor((base - descManual) / config.valorPunto) : 0
   const puntosUsados = limitar(Math.floor(Number(usarPuntos) || 0), 0, Math.min(puntosDisponibles, maxPuntos))
   const descPuntos = puntosUsados * config.valorPunto
   const total = base - descManual - descPuntos
   const descuentoTotal = descPromo + descManual + descPuntos
 
-  // Atajos: F2 busca, F9 cobra
+  // Atajos: F2 busca, F3 catálogo, F9 cobra, Supr quita el artículo marcado, Esc limpia la búsqueda
   useEffect(() => {
     function tecla(e) {
+      if (vista !== 'vender') return
       if (e.key === 'F2') {
         e.preventDefault()
         entrada.current?.focus()
+      }
+      // Ctrl + (más): un trabajador saca algo contra su cupo
+      if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') && !cobrando && !recibo) {
+        e.preventDefault()
+        setCupoAbierto(true)
+      }
+      // Ctrl M: pagar sueldo (solo el administrador)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm' && usuario?.rol === 'admin' && !cobrando && !recibo) {
+        e.preventDefault()
+        setSueldoAbierto(true)
+      }
+      if (e.key === 'F3' && !cobrando && !recibo) {
+        e.preventDefault()
+        setCatalogo(true)
       }
       if (e.key === 'F9' && carrito.length && !recibo) {
         e.preventDefault()
         setCobrando(true)
       }
+      if (e.key === 'Delete' && !esCampo(e.target) && seleccion && !cobrando && !recibo && !catalogo && !elegir) {
+        e.preventDefault()
+        quitarLinea(seleccion)
+      }
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [carrito.length, recibo])
+  })
 
   const imeisEnCarrito = (varianteId) => carrito.find((i) => i.varianteId === varianteId)?.imeis || []
   const disponiblesDe = (variante) => (variante.imeis || []).filter((m) => !imeisEnCarrito(variante.id).includes(m))
@@ -95,6 +163,7 @@ export default function Caja() {
   const lineaNueva = (producto, variante) => ({
     productoId: producto.id,
     varianteId: variante.id,
+    codigo: variante.codigo || '',
     nombre: producto.nombre,
     categoria: producto.categoria,
     condicion: producto.condicion || '',
@@ -118,6 +187,7 @@ export default function Caja() {
         return { ...i, imeis: lista, cantidad: lista.length }
       }),
     )
+    setSeleccion(variante.id)
   }
 
   function agregar({ producto, variante }, imeiExacto) {
@@ -132,6 +202,7 @@ export default function Caja() {
     } else {
       setCarrito([...carrito, { ...lineaNueva(producto, variante), cantidad: 1 }])
     }
+    setSeleccion(variante.id)
   }
 
   function cambiarCantidad(id, delta) {
@@ -167,6 +238,22 @@ export default function Caja() {
     )
   }
 
+  function quitarLinea(id) {
+    setCarrito((c) => c.filter((i) => i.varianteId !== id))
+    setSeleccion(null)
+  }
+
+  function cancelarVenta() {
+    if (carrito.length === 0) return
+    if (!confirm('¿Cancelar esta venta? Se vacía la lista.')) return
+    setCarrito([])
+    setDescuento('')
+    setUsarPuntos('')
+    setClienteId('')
+    setSeleccion(null)
+    entrada.current?.focus()
+  }
+
   // Un código leído (con la pistola o escrito): puede ser un IMEI / serial o un código de barras exacto
   function procesarCodigo(texto) {
     const c = texto.trim().toLowerCase()
@@ -196,22 +283,47 @@ export default function Caja() {
     return false
   }
 
-  // Enter en la búsqueda: el lector escribe el código aquí cuando el cursor está en este campo
+  // Teclas en la búsqueda: flechas para elegir una sugerencia, Enter para agregar, Esc para limpiar
   function alTeclear(e) {
-    if (e.key !== 'Enter' || !q) return
-    if (procesarCodigo(buscar)) {
-      pitar(true)
-      return setBuscar('')
+    if (e.key === 'ArrowDown' && sugerencias.length) {
+      e.preventDefault()
+      return setSug((s) => Math.min(sugerencias.length - 1, s + 1))
     }
-    const unica = resultados.length === 1 ? resultados[0] : null
+    if (e.key === 'ArrowUp' && sugerencias.length) {
+      e.preventDefault()
+      return setSug((s) => Math.max(-1, s - 1))
+    }
+    if (e.key === 'Escape') {
+      setBuscar('')
+      return setSug(-1)
+    }
+    if (e.key !== 'Enter' || !q) return
+    const pistola = vinoDeLaPistola()
+    tiempos.current = []
+    // una sugerencia marcada con las flechas
+    if (sug >= 0 && sugerencias[sug]) {
+      const f = sugerencias[sug]
+      if (f.variante.stock === 0) return pistola && pitar(false)
+      agregar(f)
+      setBuscar('')
+      return setSug(-1)
+    }
+    // un código leído por la pistola o escrito completo
+    if (procesarCodigo(buscar)) {
+      if (pistola) pitar(true)
+      setBuscar('')
+      return setSug(-1)
+    }
+    // si solo hay una coincidencia, se agrega
+    const unica = sugerencias.length === 1 ? sugerencias[0] : null
     if (unica && unica.variante.stock > 0) {
       agregar(unica)
       setBuscar('')
-    } else pitar(false)
+    } else if (pistola) pitar(false)
   }
 
   // La pistola funciona desde cualquier parte de la Caja, aunque el cursor no esté en la búsqueda
-  useLector(procesarCodigo, !cobrando && !recibo && !elegir)
+  useLector(procesarCodigo, !cobrando && !recibo && !elegir && !catalogo && !cupoAbierto && !sueldoAbierto && vista === 'vender')
 
   function confirmarVenta(pagos, cambio, clienteVenta, credito) {
     if (clienteVenta?.nuevo) {
@@ -262,173 +374,251 @@ export default function Caja() {
     setDescuento('')
     setUsarPuntos('')
     setClienteId('')
+    setSeleccion(null)
     setCobrando(false)
     setRecibo(venta)
   }
 
   return (
-    <>
-      <div className="cabecera">
-        <div>
-          <p className="kicker">Mostrador</p>
-          <h1 className="titulo">Caja</h1>
-          <p className="subtitulo">Escanea con la pistola o busca el producto. F2 busca · F9 cobra.</p>
-        </div>
-        {aviso && <div className={'aviso-lector' + (aviso.error ? ' error' : '')}>{aviso.texto}</div>}
-      </div>
+    <div className="caja-pantalla">
+      {cajaCerrada && !noAbrir && vista === 'vender' && !recibo && <AbrirCajaModal onCerrar={() => setNoAbrir(true)} />}
+      {aviso && <div className={'aviso-lector' + (aviso.error ? ' error' : '')}>{aviso.texto}</div>}
 
-      <BarraCaja onCerrar={() => setCierre(true)} />
-
-      <div className="caja">
-        <div className="panel">
-          <label className="buscar" style={{ marginBottom: 14 }}>
-            <Icono nombre="buscar" tam={18} />
-            <input
-              ref={entrada}
-              autoFocus
-              placeholder="Escanea el código o busca por nombre"
-              value={buscar}
-              onChange={(e) => setBuscar(e.target.value)}
-              onKeyDown={alTeclear}
-            />
-          </label>
-
-          {resultados.length === 0 ? (
-            <div className="vacio">
-              {productos.length === 0 ? 'No hay productos. Créalos primero en Inventario.' : 'Nada coincide con tu búsqueda.'}
-            </div>
-          ) : (
-            <div className="resultados">
-              {resultados.map((f) => (
-                <button key={f.variante.id} className="prod-card" disabled={f.variante.stock === 0} onClick={() => agregar(f)}>
-                  <strong>{f.producto.nombre}</strong>
-                  <span className="gris">{[f.variante.talla, f.variante.color].filter(Boolean).join(' ') || 'Única'}</span>
-                  <b>{dinero(f.producto.precio)}</b>
-                  <small className={f.variante.stock <= f.variante.minimo ? 'bajo-txt' : 'gris'}>
-                    {f.variante.stock === 0 ? 'Agotado' : `Stock: ${f.variante.stock}`}
-                    {f.producto.condicion && f.producto.condicion !== 'Nuevo' ? ` · ${f.producto.condicion}` : ''}
-                  </small>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="panel carrito-panel">
-          <div className="panel-cabeza">
-            <h2>Venta actual</h2>
-            {carrito.length > 0 && (
-              <button className="enlace peligro" onClick={() => setCarrito([])}>
-                Vaciar
-              </button>
-            )}
-          </div>
-
-          <label className="cliente-caja">
-            <span>Cliente (opcional)</span>
-            <select
-              value={clienteId}
-              onChange={(e) => {
-                setClienteId(e.target.value)
-                setUsarPuntos('')
-              }}
-            >
-              <option value="">Venta al público</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {carrito.length === 0 ? (
-            <div className="vacio">Agrega unidades para empezar.</div>
-          ) : (
-            <div className="carrito">
-              {lineas.map((i) => (
-                <div className="carrito-fila" key={i.varianteId}>
-                  <div>
-                    <strong>{i.nombre}</strong>
-                    <small className="gris">
-                      {i.detalle} · {dinero(i.precio)}
-                    </small>
-                    {(i.imeis || []).map((m) => (
-                      <small className="imei-txt" key={m}>
-                        IMEI {m}{' '}
-                        <button className="chip-x" onClick={() => quitarImei(i.varianteId, m)} aria-label={`Quitar ${m}`}>
-                          ✕
-                        </button>
-                      </small>
-                    ))}
-                    {i.garantiaDias > 0 && <small className="garantia-txt">Garantía {i.garantiaDias} días</small>}
-                    {i.promo.valor > 0 && (
-                      <small className="promo-txt">
-                        {i.promo.nombre}: − {dinero(i.promo.valor)}
-                      </small>
-                    )}
-                  </div>
-                  <div className="cantidad">
-                    <button onClick={() => cambiarCantidad(i.varianteId, -1)}>−</button>
-                    <span>{i.cantidad}</span>
-                    <button onClick={() => cambiarCantidad(i.varianteId, 1)}>+</button>
-                  </div>
-                  <strong>{dinero(i.precio * i.cantidad)}</strong>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="descuento">
-            <span>Descuento</span>
-            <input type="number" min="0" value={descuento} onChange={(e) => setDescuento(e.target.value)} placeholder="0" />
-            <select value={tipoDesc} onChange={(e) => setTipoDesc(e.target.value)}>
-              <option value="%">%</option>
-              <option value="$">$</option>
-            </select>
-          </div>
-
-          {cliente && puntosDisponibles > 0 && (
-            <div className="descuento">
-              <span>Usar puntos ({puntosDisponibles})</span>
-              <input type="number" min="0" value={usarPuntos} onChange={(e) => setUsarPuntos(e.target.value)} placeholder="0" />
-              <span className="gris">= {dinero(puntosUsados * config.valorPunto)}</span>
-            </div>
-          )}
-
-          <div className="lineas">
-            <div>
-              Subtotal <strong>{dinero(subtotal)}</strong>
-            </div>
-            {descPromo > 0 && (
-              <div>
-                Promociones <strong>− {dinero(descPromo)}</strong>
-              </div>
-            )}
-            {descManual > 0 && (
-              <div>
-                Descuento <strong>− {dinero(descManual)}</strong>
-              </div>
-            )}
-            {descPuntos > 0 && (
-              <div>
-                Puntos <strong>− {dinero(descPuntos)}</strong>
-              </div>
-            )}
-          </div>
-          <div className="resultado-neto">
-            <div>
-              <small>Total</small>
-              <strong>{dinero(total)}</strong>
-            </div>
-          </div>
-          <button className="btn oscuro btn-cobrar" disabled={carrito.length === 0} onClick={() => setCobrando(true)}>
-            Cobrar (F9)
+      <div className="caja-top">
+        <div className="segmentos">
+          <button className={vista === 'vender' ? 'activo' : ''} onClick={() => setVista('vender')}>
+            Vender
+          </button>
+          <button className={vista === 'caja' ? 'activo' : ''} onClick={() => setVista('caja')}>
+            Caja del día
           </button>
         </div>
+        {vista === 'vender' && <BarraCaja onCerrar={() => setCierre(true)} />}
       </div>
 
+      {vista === 'caja' && (
+        <div className="caja-scroll">
+          <CajaTurno />
+          {usuario?.rol === 'admin' && <HistorialCierres />}
+        </div>
+      )}
+
+      {vista === 'vender' && (
+        <div className="ticket-pos">
+          <div className="ticket-busca">
+            <div className="ticket-num">Ticket {etiquetaTicket}</div>
+            <div className="busca-caja">
+              <label className="buscar">
+                <Icono nombre="buscar" tam={18} />
+                <input
+                  ref={entrada}
+                  autoFocus
+                  placeholder="Código de barras, IMEI o nombre del producto (F2)"
+                  value={buscar}
+                  onChange={(e) => {
+                    tiempos.current = e.target.value ? [...tiempos.current.slice(-40), performance.now()] : []
+                    setBuscar(e.target.value)
+                    setSug(-1)
+                  }}
+                  onKeyDown={alTeclear}
+                />
+              </label>
+              {sugerencias.length > 0 && (
+                <div className="sugerencias">
+                  {sugerencias.map((f, n) => (
+                    <button
+                      key={f.variante.id}
+                      className={'sug-item' + (n === sug ? ' activo' : '')}
+                      disabled={f.variante.stock === 0}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        agregar(f)
+                        setBuscar('')
+                        setSug(-1)
+                        entrada.current?.focus()
+                      }}
+                    >
+                      <span>
+                        <strong>{f.producto.nombre}</strong>{' '}
+                        <small className="gris">{[f.variante.talla, f.variante.color].filter(Boolean).join(' ')}</small>
+                      </span>
+                      <span>
+                        <b>{dinero(f.producto.precio)}</b>{' '}
+                        <small className={f.variante.stock <= f.variante.minimo ? 'bajo-txt' : 'gris'}>
+                          {f.variante.stock === 0 ? 'Agotado' : `Stock ${f.variante.stock}`}
+                        </small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button className="btn" onClick={() => setCatalogo(true)}>
+              Catálogo (F3)
+            </button>
+            <button className="btn" onClick={() => setCupoAbierto(true)}>
+              Cupo (Ctrl +)
+            </button>
+            {usuario?.rol === 'admin' && (
+              <button className="btn" onClick={() => setSueldoAbierto(true)}>
+                Pagar sueldo (Ctrl M)
+              </button>
+            )}
+            <label className="cliente-caja en-linea">
+              <select
+                value={clienteId}
+                onChange={(e) => {
+                  setClienteId(e.target.value)
+                  setUsarPuntos('')
+                }}
+                aria-label="Cliente"
+              >
+                <option value="">Cliente: venta al público</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="ticket-tabla">
+            <table className="tabla-venta">
+              <thead>
+                <tr>
+                  <th style={{ width: 40 }}>#</th>
+                  <th style={{ width: 130 }}>Código</th>
+                  <th>Descripción del producto</th>
+                  <th style={{ width: 120 }}>Precio</th>
+                  <th style={{ width: 130 }}>Cantidad</th>
+                  <th style={{ width: 110 }}>Desc.</th>
+                  <th style={{ width: 130 }}>Importe</th>
+                  <th style={{ width: 40 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {lineas.map((i, n) => (
+                  <tr key={i.varianteId} className={seleccion === i.varianteId ? 'sel' : ''} onClick={() => setSeleccion(i.varianteId)}>
+                    <td>{n + 1}</td>
+                    <td className="gris">{i.codigo || '—'}</td>
+                    <td>
+                      <strong>{i.nombre}</strong>
+                      {i.detalle && <small className="gris"> {i.detalle}</small>}
+                      {(i.imeis || []).map((m) => (
+                        <small className="imei-txt" key={m}>
+                          IMEI {m}{' '}
+                          <button className="chip-x" onClick={(e) => { e.stopPropagation(); quitarImei(i.varianteId, m) }} aria-label={`Quitar ${m}`}>
+                            ✕
+                          </button>
+                        </small>
+                      ))}
+                      {i.garantiaDias > 0 && <small className="garantia-txt">Garantía {i.garantiaDias} días</small>}
+                      {i.promo.valor > 0 && <small className="promo-txt">{i.promo.nombre}</small>}
+                    </td>
+                    <td>{dinero(i.precio)}</td>
+                    <td>
+                      <div className="cantidad">
+                        <button onClick={(e) => { e.stopPropagation(); cambiarCantidad(i.varianteId, -1) }}>−</button>
+                        <span>{i.cantidad}</span>
+                        <button onClick={(e) => { e.stopPropagation(); cambiarCantidad(i.varianteId, 1) }}>+</button>
+                      </div>
+                    </td>
+                    <td>{i.promo.valor > 0 ? <span className="promo-txt">− {dinero(i.promo.valor)}</span> : '—'}</td>
+                    <td>
+                      <strong>{dinero(i.precio * i.cantidad - i.promo.valor)}</strong>
+                    </td>
+                    <td>
+                      <button className="boton-icono" onClick={(e) => { e.stopPropagation(); quitarLinea(i.varianteId) }} aria-label="Quitar artículo">
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {carrito.length === 0 && (
+              <div className="vacio">
+                {productos.length === 0
+                  ? 'No hay productos. Créalos primero en Inventario.'
+                  : 'Escanea un código, escribe el nombre o abre el catálogo para agregar el primer producto.'}
+              </div>
+            )}
+          </div>
+
+          <div className="ticket-pie">
+            <div className="pie-izq">
+              <div className="descuento">
+                <span>Descuento</span>
+                <input type="number" min="0" value={descuento} onChange={(e) => setDescuento(e.target.value)} placeholder="0" />
+                <select value={tipoDesc} onChange={(e) => setTipoDesc(e.target.value)}>
+                  <option value="%">%</option>
+                  <option value="$">$</option>
+                </select>
+              </div>
+              {exigePin && (
+                <div className="aviso-legal" style={{ margin: '6px 0' }}>
+                  Descuento sobre el límite ({descuentoMaximo(usuario)}%).{' '}
+                  <button className="enlace" onClick={autorizarDescuento}>
+                    Autorizar con PIN del administrador
+                  </button>
+                </div>
+              )}
+              {cliente && puntosDisponibles > 0 && (
+                <div className="descuento">
+                  <span>Usar puntos ({puntosDisponibles})</span>
+                  <input type="number" min="0" value={usarPuntos} onChange={(e) => setUsarPuntos(e.target.value)} placeholder="0" />
+                  <span className="gris">= {dinero(puntosUsados * config.valorPunto)}</span>
+                </div>
+              )}
+              <div className="lineas">
+                <div>
+                  Subtotal <strong>{dinero(subtotal)}</strong>
+                </div>
+                {descPromo > 0 && (
+                  <div>
+                    Promociones <strong>− {dinero(descPromo)}</strong>
+                  </div>
+                )}
+                {descManual > 0 && (
+                  <div>
+                    Descuento <strong>− {dinero(descManual)}</strong>
+                  </div>
+                )}
+                {descPuntos > 0 && (
+                  <div>
+                    Puntos <strong>− {dinero(descPuntos)}</strong>
+                  </div>
+                )}
+              </div>
+              <small className="gris">F3 catálogo · F9 cobrar · Supr quita el artículo marcado</small>
+              <div className="acciones-venta">
+                <button className="btn" disabled={!seleccion} onClick={() => seleccion && quitarLinea(seleccion)}>
+                  Quitar artículo (Supr)
+                </button>
+                <button className="btn" disabled={carrito.length === 0} onClick={cancelarVenta}>
+                  Cancelar venta
+                </button>
+              </div>
+            </div>
+
+            <div className="pie-der">
+              <div className="total-gigante">
+                <small>
+                  {articulos} {articulos === 1 ? 'artículo' : 'artículos'} · TOTAL
+                </small>
+                <strong>{dinero(total)}</strong>
+              </div>
+              <button className="btn oscuro btn-cobrar" disabled={carrito.length === 0} onClick={() => setCobrando(true)}>
+                Cobrar (F9)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {cierre && <CierreCaja onTerminar={() => setCierre(false)} />}
+      {catalogo && <BuscadorProductos filas={filas} categorias={categorias} onElegir={agregar} onCerrar={() => setCatalogo(false)} />}
       {elegir && (
         <ElegirImei
           titulo={`${elegir.producto.nombre} ${[elegir.variante.talla, elegir.variante.color].filter(Boolean).join(' ')}`}
@@ -440,7 +630,9 @@ export default function Caja() {
           onCerrar={() => setElegir(null)}
         />
       )}
-      {cobrando && <Cobro total={total} clienteInicial={cliente} onCancelar={() => setCobrando(false)} onConfirmar={confirmarVenta} />}
+      {cupoAbierto && <SacarCupo onCerrar={() => setCupoAbierto(false)} />}
+      {sueldoAbierto && <PagarSueldo onCerrar={() => setSueldoAbierto(false)} />}
+      {cobrando && !exigePin && <Cobro total={total} ticket={etiquetaTicket} articulos={articulos} clienteInicial={cliente} onCancelar={() => setCobrando(false)} onConfirmar={confirmarVenta} />}
       {recibo && (
         <Recibo
           venta={recibo}
@@ -450,6 +642,6 @@ export default function Caja() {
           }}
         />
       )}
-    </>
+    </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useClientes, useConfig } from '../almacen.js'
 import { aFechaISO, calcularCuota, dinero, listaNumeros, nuevoId, sumarMeses } from '../utils.js'
 import { constanciaAutorizacion } from '../legal.js'
@@ -11,10 +11,11 @@ const MEDIOS = [
   ['fiado', 'Fiado'],
   ['credito', 'Crédito (cuotas)'],
 ]
+const BILLETES = [10000, 20000, 50000, 100000]
 
-// Ventana de cobro: permite combinar medios de pago, incluido el fiado y el crédito en cuotas.
+// Cobro en pantalla completa: combina medios de pago, incluido el fiado y el crédito en cuotas.
 // Si la venta ya tiene un cliente elegido en la caja, el fiado y el crédito quedan a su nombre.
-export default function Cobro({ total, clienteInicial, onCancelar, onConfirmar }) {
+export default function Cobro({ total, ticket, articulos, clienteInicial, onCancelar, onConfirmar }) {
   const clientes = useClientes()
   const config = useConfig()
   const tasas = listaNumeros(config.creditoTasas)
@@ -30,6 +31,13 @@ export default function Cobro({ total, clienteInicial, onCancelar, onConfirmar }
   const [plazo, setPlazo] = useState(plazos.includes(12) ? 12 : plazos[0] || 12)
   const [tasa, setTasa] = useState(tasas[0] ?? 2)
   const [primera, setPrimera] = useState(sumarMeses(aFechaISO(new Date()), 1))
+
+  // Esc vuelve a la venta
+  useEffect(() => {
+    const alTeclear = (e) => e.key === 'Escape' && onCancelar()
+    window.addEventListener('keydown', alTeclear)
+    return () => window.removeEventListener('keydown', alTeclear)
+  }, [onCancelar])
 
   const num = (k) => Number(v[k]) || 0
   const pagado = num('efectivo') + num('transferencia') + num('tarjeta') + num('fiado') + num('credito')
@@ -82,158 +90,181 @@ export default function Cobro({ total, clienteInicial, onCancelar, onConfirmar }
   }
 
   return (
-    <div className="fondo-modal" onMouseDown={(e) => e.target === e.currentTarget && onCancelar()}>
-      <form className="modal modal-chico" onSubmit={confirmar}>
-        <div className="panel-cabeza">
-          <h2>Cobrar</h2>
-          <button type="button" className="boton-icono" onClick={onCancelar} aria-label="Cerrar">
-            ✕
+    <div className="cobro-pantalla">
+      <form className="cobro-form" onSubmit={confirmar}>
+        <div className="cobro-cab">
+          <div>
+            <h1>Cobrar</h1>
+            <span className="gris">
+              Ticket {ticket} · {articulos} {articulos === 1 ? 'artículo' : 'artículos'}
+              {clienteInicial ? ` · ${clienteInicial.nombre}` : ''}
+            </span>
+          </div>
+          <button type="button" className="btn" onClick={onCancelar}>
+            ← Volver a la venta (Esc)
           </button>
         </div>
 
-        <div className="total-grande">
-          <span>Total a pagar</span>
-          <strong>{dinero(total)}</strong>
-        </div>
-
-        {MEDIOS.map(([k, texto], i) => (
-          <div className="pago-fila" key={k}>
-            <label>
-              <span>{texto}</span>
-              <input
-                type="number"
-                min="0"
-                value={v[k]}
-                onChange={(e) => setV({ ...v, [k]: e.target.value })}
-                autoFocus={i === 0}
-                placeholder="0"
-              />
-            </label>
-            <button type="button" className="btn chico" onClick={() => completar(k)}>
-              Completar
-            </button>
-          </div>
-        ))}
-
-        {(hayFiado || hayCredito) && clienteInicial && (
-          <p className="gris">
-            {hayCredito ? 'El crédito' : 'El fiado'} queda a nombre de {clienteInicial.nombre}.
-          </p>
-        )}
-
-        {pideCliente && (
-          <div className="cliente-box">
-            <label>
-              <span>Cliente que queda debiendo</span>
-              <select
-                value={clienteId}
-                onChange={(e) => {
-                  setClienteId(e.target.value)
-                  setCedula(clientes.find((c) => c.id === e.target.value)?.cedula || '')
-                }}
-              >
-                <option value="">— Cliente nuevo —</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {clienteId === '' && (
-              <>
-                <div className="inline-form" style={{ marginTop: 8 }}>
-                  <input placeholder="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-                  <input placeholder="Teléfono (WhatsApp)" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
-                </div>
-                <label className="casilla-acepto">
-                  <input type="checkbox" checked={autoriza} onChange={(e) => setAutoriza(e.target.checked)} />
-                  <span>
-                    El cliente <strong>autorizó</strong> guardar sus datos.{' '}
-                    <button type="button" className="enlace" onClick={() => abrirVisor('legal', 'clientes')}>
-                      Ver texto
+        <div className="cobro-cuerpo">
+          <div className="cobro-izq">
+            <div className="metodos">
+              {MEDIOS.map(([k, texto], i) => (
+                <div className={'metodo' + (num(k) > 0 ? ' con-valor' : '')} key={k}>
+                  <label>
+                    <span>{texto}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={v[k]}
+                      onChange={(e) => setV({ ...v, [k]: e.target.value })}
+                      autoFocus={i === 0}
+                      placeholder="0"
+                    />
+                  </label>
+                  <div className="metodo-botones">
+                    <button type="button" className="btn chico" onClick={() => completar(k)}>
+                      Completar
                     </button>
-                  </span>
+                    {k === 'efectivo' &&
+                      BILLETES.map((b) => (
+                        <button type="button" key={b} className="btn chico" onClick={() => setV({ ...v, efectivo: String(b) })}>
+                          {dinero(b)}
+                        </button>
+                      ))}
+                    {num(k) > 0 && (
+                      <button type="button" className="enlace" onClick={() => setV({ ...v, [k]: '' })}>
+                        Borrar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {(hayFiado || hayCredito) && clienteInicial && (
+              <p className="gris">
+                {hayCredito ? 'El crédito' : 'El fiado'} queda a nombre de {clienteInicial.nombre}.
+              </p>
+            )}
+
+            {pideCliente && (
+              <div className="cliente-box">
+                <label>
+                  <span>Cliente que queda debiendo</span>
+                  <select
+                    value={clienteId}
+                    onChange={(e) => {
+                      setClienteId(e.target.value)
+                      setCedula(clientes.find((c) => c.id === e.target.value)?.cedula || '')
+                    }}
+                  >
+                    <option value="">— Cliente nuevo —</option>
+                    {clientes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nombre}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-              </>
+                {clienteId === '' && (
+                  <>
+                    <div className="inline-form" style={{ marginTop: 8 }}>
+                      <input placeholder="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+                      <input placeholder="Teléfono (WhatsApp)" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+                    </div>
+                    <label className="casilla-acepto">
+                      <input type="checkbox" checked={autoriza} onChange={(e) => setAutoriza(e.target.checked)} />
+                      <span>
+                        El cliente <strong>autorizó</strong> guardar sus datos.{' '}
+                        <button type="button" className="enlace" onClick={() => abrirVisor('legal', 'clientes')}>
+                          Ver texto
+                        </button>
+                      </span>
+                    </label>
+                  </>
+                )}
+              </div>
+            )}
+
+            {hayCredito && (
+              <div className="cliente-box">
+                <div className="credito-campos">
+                  <label>
+                    <span>Cédula del cliente</span>
+                    <input value={cedula} onChange={(e) => setCedula(e.target.value)} />
+                  </label>
+                  <label>
+                    <span>Plazo (cuotas)</span>
+                    <select value={plazo} onChange={(e) => setPlazo(Number(e.target.value))}>
+                      {plazos.map((p) => (
+                        <option key={p} value={p}>
+                          {p} meses
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Interés mensual (%)</span>
+                    <select value={tasa} onChange={(e) => setTasa(Number(e.target.value))}>
+                      {tasas.map((t) => (
+                        <option key={t} value={t}>
+                          {t}%
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Primera cuota</span>
+                    <input type="date" value={primera} onChange={(e) => setPrimera(e.target.value)} />
+                  </label>
+                </div>
+                <div className="lineas" style={{ marginTop: 10 }}>
+                  <div>
+                    Cuota inicial ({Math.round(inicialPct)}%) <strong>{dinero(inicial)}</strong>
+                  </div>
+                  <div>
+                    Valor financiado <strong>{dinero(num('credito'))}</strong>
+                  </div>
+                  <div>
+                    Cuota mensual <strong>{dinero(cuota)}</strong>
+                  </div>
+                  <div className="fuerte">
+                    Total del crédito ({plazo} cuotas) <strong>{dinero(totalCredito)}</strong>
+                  </div>
+                </div>
+                {errorCredito && <p className="error">{errorCredito}</p>}
+              </div>
             )}
           </div>
-        )}
 
-        {hayCredito && (
-          <div className="cliente-box">
-            <div className="credito-campos">
-              <label>
-                <span>Cédula del cliente</span>
-                <input value={cedula} onChange={(e) => setCedula(e.target.value)} />
-              </label>
-              <label>
-                <span>Plazo (cuotas)</span>
-                <select value={plazo} onChange={(e) => setPlazo(Number(e.target.value))}>
-                  {plazos.map((p) => (
-                    <option key={p} value={p}>
-                      {p} meses
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Interés mensual (%)</span>
-                <select value={tasa} onChange={(e) => setTasa(Number(e.target.value))}>
-                  {tasas.map((t) => (
-                    <option key={t} value={t}>
-                      {t}%
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>Primera cuota</span>
-                <input type="date" value={primera} onChange={(e) => setPrimera(e.target.value)} />
-              </label>
+          <aside className="cobro-der">
+            <div className="total-gigante">
+              <small>Total a pagar</small>
+              <strong>{dinero(total)}</strong>
             </div>
-            <div className="lineas" style={{ marginTop: 10 }}>
-              <div>
-                Cuota inicial ({Math.round(inicialPct)}%) <strong>{dinero(inicial)}</strong>
-              </div>
-              <div>
-                Valor financiado <strong>{dinero(num('credito'))}</strong>
-              </div>
-              <div>
-                Cuota mensual <strong>{dinero(cuota)}</strong>
-              </div>
-              <div className="fuerte">
-                Total del crédito ({plazo} cuotas) <strong>{dinero(totalCredito)}</strong>
-              </div>
-            </div>
-            {errorCredito && <p className="error">{errorCredito}</p>}
-          </div>
-        )}
 
-        <div className="lineas">
-          <div>
-            Pagado <strong>{dinero(pagado)}</strong>
-          </div>
-          {falta > 0 ? (
-            <div className="fuerte">
-              Falta <strong style={{ color: 'var(--rojo)' }}>{dinero(falta)}</strong>
+            <div className="lineas cobro-lineas">
+              <div>
+                Pagado <strong>{dinero(pagado)}</strong>
+              </div>
+              {falta > 0 ? (
+                <div className="fuerte">
+                  Falta <strong style={{ color: 'var(--rojo)' }}>{dinero(falta)}</strong>
+                </div>
+              ) : (
+                <div className="fuerte">
+                  Cambio <strong style={{ color: 'var(--verde)' }}>{dinero(cambio)}</strong>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="fuerte">
-              Cambio <strong>{dinero(cambio)}</strong>
-            </div>
-          )}
-        </div>
-        {pagado > total && cambio > num('efectivo') && <p className="error">El cambio solo se puede dar en efectivo.</p>}
-        {pideCliente && !clienteListo && <p className="error">Elige un cliente, o escribe el nombre del nuevo y marca su autorización.</p>}
 
-        <div className="modal-pie">
-          <button type="button" className="btn" onClick={onCancelar}>
-            Cancelar
-          </button>
-          <button type="submit" className="btn oscuro" disabled={!valido}>
-            Confirmar venta
-          </button>
+            {pagado > total && cambio > num('efectivo') && <p className="error">El cambio solo se puede dar en efectivo.</p>}
+            {pideCliente && !clienteListo && <p className="error">Elige un cliente, o escribe el nombre del nuevo y marca su autorización.</p>}
+
+            <button type="submit" className="btn oscuro btn-cobrar" disabled={!valido}>
+              Confirmar venta
+            </button>
+          </aside>
         </div>
       </form>
     </div>

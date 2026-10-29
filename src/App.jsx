@@ -1,24 +1,30 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icono from './componentes/Iconos.jsx'
 import Acceso from './componentes/Acceso.jsx'
+import MenuModulos from './componentes/MenuModulos.jsx'
+import Inicio from './pantallas/Inicio.jsx'
 import Resumen from './pantallas/Resumen.jsx'
 import Caja from './pantallas/Caja.jsx'
 import Inventario from './pantallas/Inventario.jsx'
 import Ventas from './pantallas/Ventas.jsx'
+import Movimientos from './pantallas/Movimientos.jsx'
 import Compras from './pantallas/Compras.jsx'
 import Deudas from './pantallas/Deudas.jsx'
 import Clientes from './pantallas/Clientes.jsx'
 import Ganancias from './pantallas/Ganancias.jsx'
+import Trabajadores from './pantallas/Trabajadores.jsx'
+import Facturas from './pantallas/Facturas.jsx'
 import Configuracion from './pantallas/Configuracion.jsx'
 import AccesoNube from './componentes/AccesoNube.jsx'
 import AceptarLegal from './componentes/AceptarLegal.jsx'
 import { VERSION_LEGAL } from './legal.js'
 import { abrirVisor } from './visor.js'
-import { useClientes, useVentas, useAbonos, useConfig } from './almacen.js'
-import { useUsuario, cerrarSesion, puede } from './auth.js'
+import { useConfig } from './almacen.js'
+import { useCajaActual } from './equipo.js'
+import { useUsuario, cerrarSesion, nombreRol, puede } from './auth.js'
 import { nubeConfigurada, supabase, useSesionNube } from './nube.js'
 import { useNube, olvidarEstadoNube } from './useNube.js'
-import { saldoCliente } from './utils.js'
+import { iniciarCopiaAutomatica } from './copias.js'
 
 const ESTADOS_NUBE = {
   inactivo: 'Sin sincronizar',
@@ -51,25 +57,33 @@ function Espera({ titulo, detalle, children }) {
 }
 
 const MENU = [
+  { id: 'inicio', texto: 'Inicio' },
   { id: 'caja', texto: 'Caja' },
   { id: 'resumen', texto: 'Resumen' },
   { id: 'inventario', texto: 'Inventario' },
   { id: 'ventas', texto: 'Ventas' },
+  { id: 'movimientos', texto: 'Movimientos' },
   { id: 'compras', texto: 'Compras' },
   { id: 'deudas', texto: 'Deudas' },
   { id: 'clientes', texto: 'Clientes' },
   { id: 'ganancias', texto: 'Ganancias' },
+  { id: 'trabajadores', texto: 'Trabajadores' },
+  { id: 'facturas', texto: 'Facturas' },
 ]
 
 const PANTALLAS = {
+  inicio: Inicio,
   resumen: Resumen,
   caja: Caja,
   inventario: Inventario,
   ventas: Ventas,
+  movimientos: Movimientos,
   compras: Compras,
   deudas: Deudas,
   clientes: Clientes,
   ganancias: Ganancias,
+  trabajadores: Trabajadores,
+  facturas: Facturas,
   configuracion: Configuracion,
 }
 
@@ -78,10 +92,20 @@ const TITULOS = { ...Object.fromEntries(MENU.map((m) => [m.id, m.texto])), confi
 export default function App() {
   const usuario = useUsuario()
   const config = useConfig()
-  const clientes = useClientes()
-  const ventas = useVentas()
-  const abonos = useAbonos()
-  const [pantalla, setPantalla] = useState('caja')
+  const cajaActual = useCajaActual()
+  const [pantalla, setPantalla] = useState('inicio')
+  useEffect(() => iniciarCopiaAutomatica(), [])
+  const [categoriaCaja, setCategoriaCaja] = useState(null)
+  const [menuAbierto, setMenuAbierto] = useState(false)
+  // al entrar, el trabajador cae directo en la Caja y el administrador en el Inicio
+  useEffect(() => {
+    if (usuario) setPantalla(usuario.rol === 'admin' ? 'inicio' : 'caja')
+  }, [usuario?.id, usuario?.rol])
+  // ir a una pantalla; a la Caja se puede entrar ya filtrada por una categoría
+  const irA = (destino, categoria = null) => {
+    setPantalla(destino)
+    if (destino === 'caja') setCategoriaCaja(categoria)
+  }
   const [sinNube, setSinNube] = useState(leerSinNube)
   const [sinDescarga, setSinDescarga] = useState(false)
   const sesionNube = useSesionNube()
@@ -133,43 +157,37 @@ export default function App() {
   if (config.legalAceptado?.version !== VERSION_LEGAL) return <AceptarLegal usuario={usuario} />
 
   const admin = usuario.rol === 'admin'
-  const menu = MENU.filter((m) => puede(usuario, m.id))
-  const actual = puede(usuario, pantalla) ? pantalla : 'caja'
+  const actual = puede(usuario, pantalla) ? pantalla : 'inicio'
   const Pantalla = PANTALLAS[actual]
+  const tituloActual = actual === 'caja' ? cajaActual : TITULOS[actual]
   const hoy = new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
-  const deudores = clientes.filter((c) => saldoCliente(c.id, ventas, abonos) > 0).length
 
   return (
-    <div className="app">
+    <div className={'app' + (actual === 'inicio' ? '' : ' sin-lateral')}>
+      {actual === 'inicio' && (
       <aside className="lateral">
-        <div className="lateral-logo">
+        <div className="lateral-logo" role="button" tabIndex={0} onClick={() => irA('inicio')} onKeyDown={(e) => e.key === 'Enter' && irA('inicio')}>
           <img src="./logo.png" alt={config.negocio} />
           <small>Punto de venta</small>
         </div>
-
-        <nav className="menu">
-          {menu.map((m) => (
-            <button key={m.id} className={actual === m.id ? 'activo' : ''} onClick={() => setPantalla(m.id)}>
-              <Icono nombre={m.id} />
-              {m.texto}
-              {m.id === 'deudas' && deudores > 0 && <span className="contador">{deudores}</span>}
-            </button>
-          ))}
-        </nav>
 
         <div className="lateral-pie">
           <div className="local">
             <small>Local activo</small>
             <strong>{config.negocio} · Principal</strong>
           </div>
-          <button className="configuracion" onClick={() => abrirVisor('ayuda')}>
-            <Icono nombre="alerta" /> Guía de uso
-          </button>
-          <button className="configuracion" onClick={() => abrirVisor('legal', 'privacidad')}>
-            <Icono nombre="flecha" /> Legal y privacidad
-          </button>
+          {!admin && (
+            <>
+              <button className="configuracion" onClick={() => abrirVisor('ayuda')}>
+                <Icono nombre="alerta" /> Guía de uso
+              </button>
+              <button className="configuracion" onClick={() => abrirVisor('legal', 'privacidad')}>
+                <Icono nombre="flecha" /> Legal y privacidad
+              </button>
+            </>
+          )}
           {admin && (
-            <button className={'configuracion' + (actual === 'configuracion' ? ' activo' : '')} onClick={() => setPantalla('configuracion')}>
+            <button className={'configuracion' + (actual === 'configuracion' ? ' activo' : '')} onClick={() => irA('configuracion')}>
               <Icono nombre="ajustes" /> Configuración
             </button>
           )}
@@ -177,7 +195,7 @@ export default function App() {
             <span className="avatar">{usuario.nombre.slice(0, 2).toUpperCase()}</span>
             <div>
               {usuario.nombre}
-              <small>{admin ? 'Administrador' : 'Vendedor'}</small>
+              <small>{nombreRol(usuario.rol)}</small>
             </div>
             <button aria-label="Cerrar sesión" title="Cerrar sesión" onClick={cerrarSesion}>
               <Icono nombre="salir" tam={18} />
@@ -185,13 +203,38 @@ export default function App() {
           </div>
         </div>
       </aside>
+      )}
+
+      {menuAbierto && (
+        <MenuModulos
+          usuario={usuario}
+          actual={actual}
+          nombreCaja={cajaActual}
+          irA={irA}
+          onCerrar={() => setMenuAbierto(false)}
+          onSalir={() => {
+            setMenuAbierto(false)
+            cerrarSesion()
+          }}
+        />
+      )}
 
       <div className="principal">
         <header className="barra">
+          {actual !== 'inicio' && (
+            <button className="hamburguesa" aria-label="Abrir menú" title="Menú" onClick={() => setMenuAbierto(true)}>
+              <Icono nombre="menu" tam={22} />
+            </button>
+          )}
           <span className="migas">
-            Administración &nbsp;›&nbsp; <b>{TITULOS[actual]}</b>
+            Administración &nbsp;›&nbsp; <b>{tituloActual}</b>
           </span>
           <div className="barra-der">
+            {actual !== 'inicio' && (
+              <button className="btn oscuro chico" onClick={() => irA('inicio')}>
+                ← Volver al inicio
+              </button>
+            )}
             {nubeConfigurada && sesionNube && (
               <button className={'nube-estado ' + nube.estado} title={nube.mensaje || 'Sincronizar ahora'} onClick={nube.sincronizarAhora}>
                 ☁ {ESTADOS_NUBE[nube.estado]}
@@ -202,9 +245,11 @@ export default function App() {
           </div>
         </header>
 
-        <main className="contenido">
+        <main className={'contenido' + (actual === 'caja' ? ' ajustada' : '')}>
           <Pantalla
-            irA={setPantalla}
+            irA={irA}
+            categoria={categoriaCaja}
+            onCategoria={setCategoriaCaja}
             nube={{
               configurada: nubeConfigurada,
               correo: sesionNube?.user?.email,

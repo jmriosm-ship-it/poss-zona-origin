@@ -1,3 +1,5 @@
+import { cajaDe } from './utils.js'
+
 // Cuentas de un turno de caja (desde que se abre hasta que se cierra, o hasta ahora si sigue abierta)
 const suma = (lista, campo = 'valor') => lista.reduce((s, x) => s + x[campo], 0)
 
@@ -6,7 +8,9 @@ export function resumenTurno(turno, ventas, abonos, compras, movimientos, credit
   const hasta = turno.fechaCierre || '9999'
   const dentro = (fecha) => fecha >= desde && fecha <= hasta
 
-  const delTurno = ventas.filter((v) => dentro(v.fecha))
+  // cada caja (computador) cuenta solo lo suyo
+  const mia = (x) => cajaDe(x) === cajaDe(turno)
+  const delTurno = ventas.filter((v) => dentro(v.fecha) && mia(v))
   const vigentes = delTurno.filter((v) => v.estado !== 'anulada')
   const todasVigentes = ventas.filter((v) => v.estado !== 'anulada')
 
@@ -16,12 +20,12 @@ export function resumenTurno(turno, ventas, abonos, compras, movimientos, credit
   const cambio = suma(vigentes, 'cambio')
   const efectivoVentas = porMedio.Efectivo - cambio
   porMedio.Efectivo = efectivoVentas // en el reporte, el efectivo es lo que realmente quedó (sin el cambio devuelto)
-  const devoluciones = todasVigentes.flatMap((v) => v.devoluciones || []).filter((d) => dentro(d.fecha))
+  const devoluciones = todasVigentes.flatMap((v) => v.devoluciones || []).filter((d) => dentro(d.fecha) && mia(d))
   const devEfectivo = suma(devoluciones.filter((d) => d.medio === 'Efectivo'))
   const pagosCredito = creditos.flatMap((c) => c.pagos)
-  const abonosEfectivo = suma([...abonos, ...pagosCredito].filter((a) => dentro(a.fecha) && a.medio === 'Efectivo'))
-  const pagoProveedores = suma(compras.flatMap((c) => c.pagos).filter((p) => dentro(p.fecha) && p.medio === 'Efectivo'))
-  const movs = movimientos.filter((m) => dentro(m.fecha))
+  const abonosEfectivo = suma([...abonos, ...pagosCredito].filter((a) => dentro(a.fecha) && mia(a) && a.medio === 'Efectivo'))
+  const pagoProveedores = suma(compras.flatMap((c) => c.pagos).filter((p) => dentro(p.fecha) && mia(p) && p.medio === 'Efectivo'))
+  const movs = movimientos.filter((m) => dentro(m.fecha) && mia(m))
   const ingresos = suma(movs.filter((m) => m.tipo === 'ingreso'))
   const egresos = suma(movs.filter((m) => m.tipo === 'egreso'))
   const esperado = turno.inicial + efectivoVentas + abonosEfectivo - devEfectivo - pagoProveedores + ingresos - egresos

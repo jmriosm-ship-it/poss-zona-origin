@@ -210,7 +210,7 @@ export default function Deudas() {
                       <strong>{c.clienteNombre}</strong>
                       <small className="gris">{c.descripcion}</small>
                     </td>
-                    <td>#{String(c.ventaNumero).padStart(5, '0')}</td>
+                    <td>{c.ventaEtiqueta || '#' + String(c.ventaNumero).padStart(5, '0')}</td>
                     <td>
                       {c.r.proxima ? (
                         <>
