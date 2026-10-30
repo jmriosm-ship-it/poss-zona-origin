@@ -134,8 +134,12 @@ export const CONFIG_BASE = {
   puntosPorMil: 0.1, // puntos que gana el cliente por cada $1.000 comprados (con valorPunto 100 equivale al 1%)
   valorPunto: 100, // pesos que vale cada punto al usarlo
   // Créditos en cuotas (como el simulador de la página web)
-  creditoTasas: '1, 2', // intereses mensuales (%) que se ofrecen
+  creditoTasas: '2.3', // intereses mensuales (%) que se ofrecen
   creditoPlazos: '6, 12, 18, 24, 36', // plazos en meses
+  creditoPlazosQuincenal: '24, 36, 48', // plazos en quincenas (24 = un año)
+  waDiasAntes: 1, // avisar por WhatsApp el día del vencimiento de la cuota y este número de días antes
+  waPlantilla: '', // vacío = mensaje por defecto (ver recordatorios.js)
+  waPlantillaMora: '',
   creditoInicialMin: 30, // cuota inicial mínima (% del valor de la venta)
   tasaMaximaMensual: '', // tope legal mensual (%) según la tasa de usura vigente; vacío = sin tope
 }
@@ -343,6 +347,11 @@ export function pagarCredito(id, valor, medio) {
   )
 }
 
+// Anota que ya se avisó de una cuota (para no volver a mostrarla)
+export function marcarRecordatorio(id, clave) {
+  almacenCreditos.set(almacenCreditos.leer().map((c) => (c.id === id ? { ...c, recordatorios: { ...(c.recordatorios || {}), [clave]: ahora() } } : c)))
+}
+
 export function cancelarCredito(id) {
   almacenCreditos.set(almacenCreditos.leer().map((c) => (c.id === id ? { ...c, estado: 'cancelado' } : c)))
 }
@@ -380,6 +389,14 @@ export function borrarUsuario(id) {
   registrarAccion('Borró un usuario', almacenUsuarios.leer().find((u) => u.id === id)?.nombre || '')
   quitarDe(almacenUsuarios, id)
 }
+// Devolución de dinero desde la Caja: sale efectivo de la caja y queda como gasto (baja la ganancia del mes)
+export function registrarDevolucionDinero(motivo, valor) {
+  const gastoId = nuevoId()
+  agregar(almacenGastos, { id: gastoId, categoria: 'Devoluciones', concepto: 'Devolución: ' + motivo, valor, devolucion: true })
+  agregar(almacenMovimientos, { tipo: 'egreso', valor, motivo: 'Devolución: ' + motivo, gastoId })
+  registrarAccion('Devolución de dinero', motivo + ' · $' + valor)
+}
+
 // ---------- Cupo y pagos de trabajadores ----------
 export function registrarConsumo(usuario, concepto, valor) {
   registrarAccion('Registró consumo de trabajador', usuario.nombre + ' · ' + concepto + ' · $' + valor)
@@ -398,6 +415,8 @@ export function registrarPagoSueldo({ usuario, sueldo, descuento, periodo, nota,
 }
 
 export const guardarConfig = (parcial) => almacenConfig.set({ ...almacenConfig.leer(), ...parcial, _t: Date.now() })
+// El interés de los créditos es 2,3% mensual (antes se ofrecían 1% y 2%)
+if (almacenConfig.leer().creditoTasas === '1, 2') guardarConfig({ creditoTasas: '2.3' })
 
 // Colecciones que se sincronizan con la nube. La configuración es un solo registro con id "config".
 export const almacenesNube = {

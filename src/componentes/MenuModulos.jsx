@@ -15,7 +15,7 @@ const MODULOS = [
   ['resumen', 'Resumen', 'resumen'],
   ['ganancias', 'Ganancias', 'ganancias'],
   ['trabajadores', 'Trabajadores', 'clientes'],
-  ['facturas', 'Facturas', 'ventas'],
+  ['facturas', 'Facturas', 'factura'],
   ['configuracion', 'Configuración', 'ajustes'],
 ]
 

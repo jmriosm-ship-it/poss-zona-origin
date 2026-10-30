@@ -63,6 +63,12 @@ const RUTAS = {
       <path d="M16 5.2a3 3 0 010 5.6M18 14.3c1.8.8 3 2.6 3 4.7" />
     </>
   ),
+  factura: (
+    <>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z" />
+      <path d="M9 8h6M9 12h6" />
+    </>
+  ),
   ganancias: (
     <>
       <path d="M3 17l6-6 4 4 8-8" />

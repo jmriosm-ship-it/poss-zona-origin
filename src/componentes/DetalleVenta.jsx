@@ -6,7 +6,7 @@ import { useUsuario } from '../auth.js'
 import { cantidadDevuelta, devuelto, dinero, etiquetaVenta, fechaHora, imeisDevueltos, vencimientoGarantia } from '../utils.js'
 
 // Detalle de una venta: devolver unidades, anular o reimprimir el recibo
-export default function DetalleVenta({ ventaId, onCerrar }) {
+export default function DetalleVenta({ ventaId, onCerrar, autorizado = false }) {
   const venta = useVentas().find((v) => v.id === ventaId)
   const usuario = useUsuario()
   const [cant, setCant] = useState({})
@@ -16,7 +16,7 @@ export default function DetalleVenta({ ventaId, onCerrar }) {
 
   if (!venta) return null
   const anulada = venta.estado === 'anulada'
-  const admin = usuario?.rol === 'admin' || Boolean(usuario?.permisos?.anular)
+  const admin = usuario?.rol === 'admin' || Boolean(usuario?.permisos?.anular) || autorizado
   const aCredito = Boolean(venta.credito)
   const factor = venta.subtotal > 0 ? venta.total / venta.subtotal : 1
 

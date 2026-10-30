@@ -3,11 +3,13 @@ import Icono from '../componentes/Iconos.jsx'
 import ConfigPromos from '../componentes/ConfigPromos.jsx'
 import ConfigUsuarios from '../componentes/ConfigUsuarios.jsx'
 import ConfigRegistro from '../componentes/ConfigRegistro.jsx'
+import ConfigEquipos from '../componentes/ConfigEquipos.jsx'
 import { useConfig, useProductos, guardarConfig, exportarTodo, importarTodo } from '../almacen.js'
 import { claveCategoria, listarCategorias } from '../categorias.js'
 import { abrirVisor } from '../visor.js'
 import { guardarNombreCaja, useCajaActual } from '../equipo.js'
 import { descargar } from '../csv.js'
+import { PLANTILLA_AVISO, PLANTILLA_MORA } from '../recordatorios.js'
 import { hacerCopia, hayCopias } from '../copias.js'
 import { fechaHora } from '../utils.js'
 
@@ -19,6 +21,7 @@ const TABS = [
   ['promos', 'Promociones'],
   ['usuarios', 'Usuarios'],
   ['registro', 'Registro'],
+  ['equipos', 'Impresora y pistola'],
   ['ayuda', 'Ayuda y legal'],
   ['datos', 'Datos y copias'],
 ]
@@ -187,8 +190,12 @@ function ConfigCredito() {
   const [f, setF] = useState({
     creditoTasas: config.creditoTasas,
     creditoPlazos: config.creditoPlazos,
+    creditoPlazosQuincenal: config.creditoPlazosQuincenal || '24, 36, 48',
     creditoInicialMin: String(config.creditoInicialMin),
     tasaMaximaMensual: String(config.tasaMaximaMensual ?? ''),
+    waDiasAntes: String(config.waDiasAntes ?? 1),
+    waPlantilla: config.waPlantilla || PLANTILLA_AVISO,
+    waPlantillaMora: config.waPlantillaMora || PLANTILLA_MORA,
   })
   const [guardado, setGuardado] = useState(false)
   const cambiar = (campo) => (e) => {
@@ -204,8 +211,12 @@ function ConfigCredito() {
         guardarConfig({
           creditoTasas: f.creditoTasas.trim() || '2',
           creditoPlazos: f.creditoPlazos.trim() || '12',
+          creditoPlazosQuincenal: f.creditoPlazosQuincenal.trim() || '24, 36, 48',
           creditoInicialMin: Math.min(100, Math.max(0, Number(f.creditoInicialMin) || 0)),
           tasaMaximaMensual: f.tasaMaximaMensual.trim(),
+          waDiasAntes: Math.min(7, Math.max(0, Number(f.waDiasAntes) || 0)),
+          waPlantilla: f.waPlantilla.trim() === PLANTILLA_AVISO ? '' : f.waPlantilla.trim(),
+          waPlantillaMora: f.waPlantillaMora.trim() === PLANTILLA_MORA ? '' : f.waPlantillaMora.trim(),
         })
         setGuardado(true)
       }}
@@ -219,11 +230,15 @@ function ConfigCredito() {
       <div className="campos">
         <label>
           <span>Intereses mensuales que ofreces (%), separados por coma</span>
-          <input value={f.creditoTasas} onChange={cambiar('creditoTasas')} placeholder="1, 2" />
+          <input value={f.creditoTasas} onChange={cambiar('creditoTasas')} placeholder="2.3 (con punto, no coma)" />
         </label>
         <label>
           <span>Plazos en meses, separados por coma</span>
           <input value={f.creditoPlazos} onChange={cambiar('creditoPlazos')} placeholder="6, 12, 18, 24, 36" />
+        </label>
+        <label>
+          <span>Plazos en quincenas (cuotas cada 15 días), separados por coma</span>
+          <input value={f.creditoPlazosQuincenal} onChange={cambiar('creditoPlazosQuincenal')} placeholder="24, 36, 48" />
         </label>
         <label>
           <span>Cuota inicial mínima (% del valor de la venta)</span>
@@ -232,6 +247,26 @@ function ConfigCredito() {
         <label>
           <span>Tope de interés mensual permitido (%)</span>
           <input value={f.tasaMaximaMensual} onChange={cambiar('tasaMaximaMensual')} placeholder="Ej: 2.2" />
+        </label>
+      </div>
+      <div className="panel-cabeza" style={{ marginTop: 20 }}>
+        <div>
+          <h2>Avisos de cuotas por WhatsApp</h2>
+          <p className="sub">Se avisa el día del vencimiento y los días antes que pongas. Puedes usar: {'{nombre} {negocio} {n} {cuotas} {valor} {fecha} {cuando} {saldo}'}</p>
+        </div>
+      </div>
+      <div className="campos">
+        <label>
+          <span>Avisar desde (días antes del vencimiento)</span>
+          <input type="number" min="0" max="7" value={f.waDiasAntes} onChange={cambiar('waDiasAntes')} />
+        </label>
+        <label className="ancho">
+          <span>Mensaje antes de vencer</span>
+          <textarea rows="3" value={f.waPlantilla} onChange={cambiar('waPlantilla')} style={{ width: '100%' }} />
+        </label>
+        <label className="ancho">
+          <span>Mensaje si la cuota ya venció</span>
+          <textarea rows="3" value={f.waPlantillaMora} onChange={cambiar('waPlantillaMora')} style={{ width: '100%' }} />
         </label>
       </div>
       <p className="gris" style={{ marginTop: 12 }}>
@@ -622,6 +657,7 @@ export default function Configuracion({ nube }) {
       {tab === 'promos' && <ConfigPromos />}
       {tab === 'usuarios' && <ConfigUsuarios />}
       {tab === 'registro' && <ConfigRegistro />}
+      {tab === 'equipos' && <ConfigEquipos />}
       {tab === 'nube' && <Nube nube={nube} />}
       {tab === 'datos' && <Datos />}
     </>

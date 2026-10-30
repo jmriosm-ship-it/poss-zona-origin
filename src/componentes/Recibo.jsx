@@ -1,33 +1,48 @@
+import { imprimir } from '../impresion.js'
 import FacturaVenta from './FacturaVenta.jsx'
 import { useConfig } from '../almacen.js'
-import { dinero, etiquetaVenta, fechaHora, vencimientoGarantia } from '../utils.js'
+import { dinero, etiquetaVenta, vencimientoGarantia } from '../utils.js'
 
 const fechaCorta = (d) => d.toLocaleDateString('es-CO', { dateStyle: 'medium' })
+const fechaLarga = (iso) => new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/ de /g, ' ')
+const hora = (iso) => new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
 
 // Ticket para impresora térmica de 80 mm
 export default function Recibo({ venta, onCerrar, textoCerrar = 'Nueva venta' }) {
   const config = useConfig()
   const conGarantia = venta.items.some((i) => i.garantiaDias > 0)
+  const cantidad = venta.items.reduce((s, i) => s + i.cantidad, 0)
 
   return (
     <div className="fondo-modal">
       <div className="modal modal-chico">
         <div className="ticket">
+          <img className="t-logo" src="./logo.png" alt="" />
           <h3>{config.negocio.toUpperCase()}</h3>
-          {config.nit && <p className="centro">NIT {config.nit}</p>}
+          {config.nit && <p className="centro">Nit: {config.nit}</p>}
+          <p className="centro">RECIBO DE VENTA</p>
+          {config.ciudad && <p className="centro">{config.ciudad}</p>}
           {config.direccion && <p className="centro">{config.direccion}</p>}
           {config.telefono && <p className="centro">Tel. {config.telefono}</p>}
           <hr />
-          <p className="centro">Recibo de venta {etiquetaVenta(venta)}</p>
-          <p className="centro">{fechaHora(venta.fecha)}</p>
-          {venta.caja && <p className="centro">{venta.caja}</p>}
-          {venta.vendedorNombre && <p className="centro">Atendió: {venta.vendedorNombre}</p>}
-          {venta.clienteNombre && <p className="centro">Cliente: {venta.clienteNombre}</p>}
+          <p>Ticket POS Nro: {etiquetaVenta(venta)}</p>
+          <p>
+            Fecha: {fechaLarga(venta.fecha)} Hora: {hora(venta.fecha)}
+          </p>
+          {venta.caja && <p>Des: {venta.caja}</p>}
+          {venta.vendedorNombre && <p>Atendido por: {venta.vendedorNombre}</p>}
+          <p>Cliente: {venta.clienteNombre || 'cliente esporádico'}</p>
+          <hr />
+          <div className="t-fila t-enc">
+            <span>Producto</span>
+            <span>Cant</span>
+            <span>Subto</span>
+          </div>
           <hr />
           {venta.items.map((i) => (
             <div className="t-item" key={i.varianteId}>
               <div>
-                {i.cantidad} x {i.nombre}
+                {i.nombre.toUpperCase()}
                 {i.detalle && <small> ({i.detalle})</small>}
                 {i.condicion && i.condicion !== 'Nuevo' && <small> · {i.condicion}</small>}
               </div>
@@ -41,34 +56,37 @@ export default function Recibo({ venta, onCerrar, textoCerrar = 'Nueva venta' })
                   Garantía {i.garantiaDias} días · hasta {fechaCorta(vencimientoGarantia(venta.fecha, i.garantiaDias))}
                 </div>
               )}
-              <div className="t-fila">
-                <span>{dinero(i.precio)} c/u</span>
-                <span>{dinero(i.precio * i.cantidad)}</span>
+              <div className="t-der">
+                {dinero(i.precio)} X {i.cantidad} = {dinero(i.precio * i.cantidad)}
               </div>
             </div>
           ))}
           <hr />
+          <p>Total ítems: {venta.items.length}</p>
+          <p>Total cantidad: {cantidad}</p>
           <div className="t-fila">
-            <span>Subtotal</span>
+            <span>Subtotal:</span>
             <span>{dinero(venta.subtotal)}</span>
           </div>
-          {venta.descuento > 0 && (
-            <div className="t-fila">
-              <span>Descuentos</span>
-              <span>- {dinero(venta.descuento)}</span>
-            </div>
-          )}
+          <div className="t-fila">
+            <span>Descuento:</span>
+            <span>{dinero(venta.descuento || 0)}</span>
+          </div>
           <div className="t-fila t-total">
-            <span>TOTAL</span>
+            <span>Total:</span>
             <span>{dinero(venta.total)}</span>
           </div>
           <hr />
           {venta.pagos.map((p) => (
             <div className="t-fila" key={p.medio}>
-              <span>{p.medio}</span>
+              <span>{p.medio}:</span>
               <span>{dinero(p.valor)}</span>
             </div>
           ))}
+          <div className="t-fila t-total">
+            <span>Cambio:</span>
+            <span>{dinero(venta.cambio || 0)}</span>
+          </div>
           {venta.credito && (
             <>
               <hr />
@@ -78,7 +96,7 @@ export default function Recibo({ venta, onCerrar, textoCerrar = 'Nueva venta' })
                 <span>{dinero(venta.credito.cuotaInicial)}</span>
               </div>
               <div className="t-fila">
-                <span>{venta.credito.plazo} cuotas de</span>
+                <span>{venta.credito.plazo} cuotas {venta.credito.frecuencia === 'quincenal' ? 'quincenales ' : ''}de</span>
                 <span>{dinero(venta.credito.cuotaValor)}</span>
               </div>
               <div className="t-fila">
@@ -90,12 +108,6 @@ export default function Recibo({ venta, onCerrar, textoCerrar = 'Nueva venta' })
                 <span>{new Date(venta.credito.primeraFecha + 'T12:00:00').toLocaleDateString('es-CO', { dateStyle: 'medium' })}</span>
               </div>
             </>
-          )}
-          {venta.cambio > 0 && (
-            <div className="t-fila">
-              <span>Cambio</span>
-              <span>{dinero(venta.cambio)}</span>
-            </div>
           )}
           {(venta.puntosGanados > 0 || venta.puntosUsados > 0) && (
             <>
@@ -119,7 +131,7 @@ export default function Recibo({ venta, onCerrar, textoCerrar = 'Nueva venta' })
             {textoCerrar}
           </button>
           <FacturaVenta venta={venta} />
-          <button className="btn oscuro" onClick={() => window.print()}>
+          <button className="btn oscuro" onClick={() => imprimir()}>
             Imprimir recibo
           </button>
         </div>

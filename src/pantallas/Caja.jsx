@@ -9,6 +9,8 @@ import CajaTurno from '../componentes/CajaTurno.jsx'
 import AbrirCajaModal from '../componentes/AbrirCajaModal.jsx'
 import SacarCupo from '../componentes/SacarCupo.jsx'
 import PagarSueldo from '../componentes/PagarSueldo.jsx'
+import DevolucionCaja from '../componentes/DevolucionCaja.jsx'
+import CajasResumen from '../componentes/CajasResumen.jsx'
 import HistorialCierres from '../componentes/HistorialCierres.jsx'
 import BuscadorProductos from '../componentes/BuscadorProductos.jsx'
 import { activarSonido, pitar, useLector } from '../lector.js'
@@ -49,6 +51,7 @@ export default function Caja() {
   const [cierre, setCierre] = useState(false)
   const [cupoAbierto, setCupoAbierto] = useState(false)
   const [sueldoAbierto, setSueldoAbierto] = useState(false)
+  const [devAbierta, setDevAbierta] = useState(false)
   const [descOk, setDescOk] = useState(0) // descuento autorizado con el PIN del administrador
   const [vista, setVista] = useState('vender') // 'vender' o 'caja' (la caja del día completa)
   const entrada = useRef(null)
@@ -133,6 +136,11 @@ export default function Caja() {
       if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') && !cobrando && !recibo) {
         e.preventDefault()
         setCupoAbierto(true)
+      }
+      // Ctrl L: devolución de dinero
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l' && !cobrando && !recibo) {
+        e.preventDefault()
+        setDevAbierta(true)
       }
       // Ctrl M: pagar sueldo (solo el administrador)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm' && usuario?.rol === 'admin' && !cobrando && !recibo) {
@@ -323,7 +331,7 @@ export default function Caja() {
   }
 
   // La pistola funciona desde cualquier parte de la Caja, aunque el cursor no esté en la búsqueda
-  useLector(procesarCodigo, !cobrando && !recibo && !elegir && !catalogo && !cupoAbierto && !sueldoAbierto && vista === 'vender')
+  useLector(procesarCodigo, !cobrando && !recibo && !elegir && !catalogo && !cupoAbierto && !sueldoAbierto && !devAbierta && vista === 'vender')
 
   function confirmarVenta(pagos, cambio, clienteVenta, credito) {
     if (clienteVenta?.nuevo) {
@@ -339,7 +347,7 @@ export default function Caja() {
       const existente = clientes.find((c) => c.id === clienteVenta.id)
       if (existente && existente.cedula !== clienteVenta.cedula) guardarCliente({ ...existente, cedula: clienteVenta.cedula })
     }
-    const plan = credito ? armarCuotas(credito.financiado, credito.plazo, credito.tasa, credito.primeraFecha) : null
+    const plan = credito ? armarCuotas(credito.financiado, credito.plazo, credito.tasa, credito.primeraFecha, credito.frecuencia) : null
     const venta = registrarVenta({
       items: carrito.map(({ max, ...resto }) => resto),
       subtotal,
@@ -352,7 +360,7 @@ export default function Caja() {
       puntosGanados: clienteVenta ? Math.floor((total / 1000) * config.puntosPorMil) : 0,
       ...(clienteVenta ? { clienteId: clienteVenta.id, clienteNombre: clienteVenta.nombre } : {}),
       ...(plan
-        ? { credito: { plazo: credito.plazo, tasa: credito.tasa, cuotaValor: plan.cuotaValor, totalCredito: plan.totalCredito, cuotaInicial: credito.cuotaInicial, primeraFecha: credito.primeraFecha } }
+        ? { credito: { plazo: credito.plazo, tasa: credito.tasa, cuotaValor: plan.cuotaValor, totalCredito: plan.totalCredito, cuotaInicial: credito.cuotaInicial, primeraFecha: credito.primeraFecha, frecuencia: credito.frecuencia || 'mensual' } }
         : {}),
       vendedorId: usuario?.id,
       vendedorNombre: usuario?.nombre,
@@ -367,6 +375,7 @@ export default function Caja() {
         cuotaInicial: credito.cuotaInicial,
         plazo: credito.plazo,
         tasa: credito.tasa,
+        frecuencia: credito.frecuencia || 'mensual',
         ...plan,
       })
     }
@@ -398,6 +407,7 @@ export default function Caja() {
 
       {vista === 'caja' && (
         <div className="caja-scroll">
+          {usuario?.rol === 'admin' && <CajasResumen />}
           <CajaTurno />
           {usuario?.rol === 'admin' && <HistorialCierres />}
         </div>
@@ -458,6 +468,9 @@ export default function Caja() {
             </button>
             <button className="btn" onClick={() => setCupoAbierto(true)}>
               Cupo (Ctrl +)
+            </button>
+            <button className="btn" onClick={() => setDevAbierta(true)}>
+              Devolución (Ctrl L)
             </button>
             {usuario?.rol === 'admin' && (
               <button className="btn" onClick={() => setSueldoAbierto(true)}>
@@ -632,6 +645,7 @@ export default function Caja() {
       )}
       {cupoAbierto && <SacarCupo onCerrar={() => setCupoAbierto(false)} />}
       {sueldoAbierto && <PagarSueldo onCerrar={() => setSueldoAbierto(false)} />}
+      {devAbierta && <DevolucionCaja onCerrar={() => setDevAbierta(false)} />}
       {cobrando && !exigePin && <Cobro total={total} ticket={etiquetaTicket} articulos={articulos} clienteInicial={cliente} onCancelar={() => setCobrando(false)} onConfirmar={confirmarVenta} />}
       {recibo && (
         <Recibo

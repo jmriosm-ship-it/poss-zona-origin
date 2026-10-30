@@ -4,10 +4,13 @@ import { useUsuario, puede } from '../auth.js'
 import { calcular } from '../reportes.js'
 import { cajasRepetidas, imeisVendidosDosVeces } from '../alertas.js'
 import { analizarInventario } from '../inteligente.js'
+import { cuotasPorAvisar } from '../recordatorios.js'
 import { useCajaActual } from '../equipo.js'
 import { dinero, esHoyISO, netoVenta, rangoPeriodo, resumenCredito, saldoCliente, saldoCompra } from '../utils.js'
 
 // Pantalla de inicio: los módulos del sistema como tarjetas, cada una con un dato del momento.
+const ICONO_DE = { configuracion: 'ajustes', trabajadores: 'clientes', facturas: 'factura' }
+
 export default function Inicio({ irA, nube }) {
   const usuario = useUsuario()
   const caja = useCajaActual()
@@ -30,6 +33,7 @@ export default function Inicio({ irA, nube }) {
   const mes = calcular(ventas, gastos, rangoPeriodo('mes'), creditos)
   const repetidos = usuario?.rol === 'admin' ? imeisVendidosDosVeces(ventas) : []
   const porReponer = analizarInventario(productos, ventas)
+  const avisosCuotas = usuario?.rol === 'admin' ? cuotasPorAvisar(creditos, clientes, config) : []
   const cajasIguales = usuario?.rol === 'admin' ? cajasRepetidas(ventas) : []
 
   const modulos = [
@@ -75,6 +79,14 @@ export default function Inicio({ irA, nube }) {
           </ul>
         </div>
       )}
+      {avisosCuotas.length > 0 && (
+        <div className="aviso-legal" style={{ marginBottom: 16 }}>
+          <strong>{avisosCuotas.length} {avisosCuotas.length === 1 ? 'cuota por avisar' : 'cuotas por avisar'} por WhatsApp</strong> (vencen hoy, mañana o están vencidas).{' '}
+          <button className="enlace" onClick={() => irA('deudas')}>
+            Ver y enviar
+          </button>
+        </div>
+      )}
       {porReponer.length > 0 && (
         <div className="aviso-legal" style={{ marginBottom: 16 }}>
           <strong>Inventario: {porReponer.length} {porReponer.length === 1 ? 'producto necesita' : 'productos necesitan'} reposición.</strong>{' '}
@@ -101,7 +113,7 @@ export default function Inicio({ irA, nube }) {
         {modulos.map(([id, titulo, sub]) => (
           <button key={id} className="tile" onClick={() => irA(id)}>
             <span className="tile-icono">
-              <Icono nombre={id === 'configuracion' ? 'ajustes' : id} tam={24} />
+              <Icono nombre={ICONO_DE[id] || id} tam={24} />
             </span>
             <strong>{titulo}</strong>
             <span>{sub}</span>

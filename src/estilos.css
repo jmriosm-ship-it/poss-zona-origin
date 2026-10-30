@@ -586,3 +586,12 @@ button { cursor: pointer; }
 .cupo-sacar div {
   max-width: 100%;
 }
+
+/* Recibo: modelo con logo, encabezado de productos y totales */
+.ticket .t-logo { display: block; width: 70px; margin: 0 auto 8px; filter: grayscale(1) contrast(1.4); }
+.ticket .t-enc { font-weight: 700; }
+.ticket .t-der { text-align: right; }
+.ticket p { margin: 0; line-height: 1.4; }
+.ticket .t-total { font-size: 17px; }
+
+.version-pos { font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; background: var(--borde, #e5e5e7); font-size: 12px; }

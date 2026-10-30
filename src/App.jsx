@@ -25,6 +25,7 @@ import { useUsuario, cerrarSesion, nombreRol, puede } from './auth.js'
 import { nubeConfigurada, supabase, useSesionNube } from './nube.js'
 import { useNube, olvidarEstadoNube } from './useNube.js'
 import { iniciarCopiaAutomatica } from './copias.js'
+import pkg from '../package.json'
 
 const ESTADOS_NUBE = {
   inactivo: 'Sin sincronizar',
@@ -240,6 +241,7 @@ export default function App() {
                 ☁ {ESTADOS_NUBE[nube.estado]}
               </button>
             )}
+            <span className="version-pos" title={"Versión " + pkg.version}>POS {pkg.version.split(".").slice(0, 2).join(".")}</span>
             <span>{hoy}</span>
             <strong>COP $</strong>
           </div>
