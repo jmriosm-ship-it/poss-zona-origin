@@ -46,6 +46,21 @@ export function guardarNombreCaja(nombre) {
   oyentes.forEach((f) => f())
 }
 
+export const datosEquipo = () => datos
+export function guardarEquipo(parcial) {
+  datos = { ...datos, ...parcial }
+  guardar(datos)
+  oyentes.forEach((f) => f())
+}
+export const useEquipo = () =>
+  useSyncExternalStore(
+    (f) => {
+      oyentes.add(f)
+      return () => oyentes.delete(f)
+    },
+    () => datos,
+  )
+
 export const useCajaActual = () =>
   useSyncExternalStore(
     (f) => {

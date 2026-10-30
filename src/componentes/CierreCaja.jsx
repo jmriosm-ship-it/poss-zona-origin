@@ -1,3 +1,4 @@
+import { imprimir } from '../impresion.js'
 import { useState } from 'react'
 import { useTurnos, useVentas, useAbonos, useCompras, useCreditos, useMovimientos, useConfig, cerrarCaja } from '../almacen.js'
 import { resumenTurno, instantanea } from '../turno.js'
@@ -157,7 +158,7 @@ export default function CierreCaja({ onTerminar }) {
             <button className="btn" onClick={onTerminar}>
               Listo
             </button>
-            <button className="btn oscuro" onClick={() => window.print()}>
+            <button className="btn oscuro" onClick={() => imprimir()}>
               Imprimir cierre
             </button>
           </div>

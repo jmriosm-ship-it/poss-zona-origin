@@ -39,6 +39,8 @@ ipcMain.handle('copias:listar', () => {
   }
 })
 ipcMain.handle('copias:leer', (_e, nombre) => (NOMBRE_COPIA.test(String(nombre)) ? fs.readFileSync(path.join(carpetaCopias(), nombre), 'utf8') : null))
+ipcMain.handle('impresion:listar', async (e) => (await e.sender.getPrintersAsync()).map((p) => ({ nombre: p.name, predeterminada: Boolean(p.isDefault) })))
+ipcMain.handle('impresion:imprimir', (e, nombre) => new Promise((ok) => e.sender.print({ silent: true, deviceName: String(nombre), printBackground: true }, (exito, razon) => ok({ ok: exito, error: razon }))))
 ipcMain.handle('copias:abrir', () => {
   fs.mkdirSync(carpetaCopias(), { recursive: true })
   return shell.openPath(carpetaCopias())
@@ -56,6 +58,10 @@ function crearVentana() {
     webPreferences: { contextIsolation: true, preload: path.join(__dirname, 'preload.cjs') },
   })
   Menu.setApplicationMenu(null)
+  ventana.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https:\/\/(wa\.me|api\.whatsapp\.com|web\.whatsapp\.com)\//.test(url)) shell.openExternal(url)
+    return { action: 'deny' }
+  })
   ventana.loadFile(path.join(__dirname, '..', 'dist', 'index.html'))
 }
 

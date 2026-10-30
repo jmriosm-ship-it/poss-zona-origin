@@ -81,7 +81,7 @@ export function construirMovimientos({ ventas, compras, abonos, creditos, gastos
     for (const p of c.pagos) agregar('pagoCredito', p.id, p.fecha, `${c.clienteNombre} · crédito de la venta ${c.ventaEtiqueta || num(c.ventaNumero)} · ${p.medio}`, p.valor)
   }
   for (const g of gastos) agregar('gasto', g.id, g.fecha, g.concepto && g.concepto !== g.categoria ? `${g.categoria} · ${g.concepto}` : g.categoria, g.valor)
-  for (const m of movimientos) agregar(m.tipo === 'ingreso' ? 'ingreso' : 'egreso', m.id, m.fecha, m.motivo, m.valor)
+  for (const m of movimientos.filter((x) => !x.gastoId)) agregar(m.tipo === 'ingreso' ? 'ingreso' : 'egreso', m.id, m.fecha, m.motivo, m.valor)
 
   for (const t of turnos) {
     agregar('apertura', t.id, t.fechaApertura, 'Efectivo inicial', t.inicial, { ref: t.resumen ? { tipo: 'turno', id: t.id } : undefined })

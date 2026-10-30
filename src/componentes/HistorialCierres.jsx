@@ -1,3 +1,4 @@
+import { imprimir } from '../impresion.js'
 import { useState } from 'react'
 import { TicketCierre } from './CierreCaja.jsx'
 import { useTurnos } from '../almacen.js'
@@ -82,7 +83,7 @@ export default function HistorialCierres() {
               <button className="btn" onClick={() => setVer(null)}>
                 Cerrar
               </button>
-              <button className="btn oscuro" onClick={() => window.print()}>
+              <button className="btn oscuro" onClick={() => imprimir()}>
                 Imprimir
               </button>
             </div>

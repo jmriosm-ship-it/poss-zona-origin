@@ -1,3 +1,4 @@
+import { imprimir } from '../impresion.js'
 import { useMemo, useState } from 'react'
 import Icono from '../componentes/Iconos.jsx'
 import DetalleVenta from '../componentes/DetalleVenta.jsx'
@@ -149,7 +150,7 @@ export default function Movimientos() {
               <button className="btn" onClick={() => setVerTurno(null)}>
                 Cerrar
               </button>
-              <button className="btn oscuro" onClick={() => window.print()}>
+              <button className="btn oscuro" onClick={() => imprimir()}>
                 Imprimir
               </button>
             </div>

@@ -1,3 +1,4 @@
+import { imprimir } from '../impresion.js'
 import { useState } from 'react'
 import Icono from './Iconos.jsx'
 import { useConfig } from '../almacen.js'
@@ -46,7 +47,7 @@ export default function Visor() {
           ))}
         </div>
         <div className="cabecera-acciones">
-          <button className="btn chico" onClick={() => window.print()}>
+          <button className="btn chico" onClick={() => imprimir()}>
             Imprimir
           </button>
           <button className="btn oscuro chico" onClick={cerrarVisor}>
