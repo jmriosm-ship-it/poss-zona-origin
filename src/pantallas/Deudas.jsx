@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Icono from '../componentes/Iconos.jsx'
 import { useClientes, useVentas, useAbonos, useCompras, useCreditos, guardarCliente, registrarAbono, abonarCompra, pagarCredito } from '../almacen.js'
 import CreditoDetalle, { recordatorioCredito } from '../componentes/CreditoDetalle.jsx'
+import AvisosCuotas from '../componentes/AvisosCuotas.jsx'
 import { dinero, fechaLarga, nuevoId, resumenCredito, saldoCliente, saldoCompra } from '../utils.js'
 import { constanciaAutorizacion } from '../legal.js'
 import { abrirVisor } from '../visor.js'
@@ -127,6 +128,8 @@ export default function Deudas() {
           </button>
         </div>
       </div>
+
+      <AvisosCuotas />
 
       <div className="panel">
         <div className="filtros">

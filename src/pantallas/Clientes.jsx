@@ -7,7 +7,7 @@ import { dinero, etiquetaVenta, fechaHora, netoVenta, nuevoId, puntosCliente, sa
 import { constanciaAutorizacion } from '../legal.js'
 import { abrirVisor } from '../visor.js'
 
-const VACIO = { nombre: '', cedula: '', telefono: '', correo: '', nota: '', autoriza: false }
+const VACIO = { nombre: '', cedula: '', telefono: '', whatsapp: '', correo: '', nota: '', autoriza: false }
 
 export default function Clientes() {
   const clientes = useClientes()
@@ -51,6 +51,7 @@ export default function Clientes() {
       nombre: form.nombre.trim(),
       cedula: form.cedula.trim(),
       telefono: form.telefono.trim(),
+      whatsapp: (form.whatsapp || '').trim(),
       correo: form.correo.trim(),
       nota: form.nota.trim(),
       autorizacion: previa || constanciaAutorizacion(),
@@ -161,6 +162,10 @@ export default function Clientes() {
               <label>
                 <span>Teléfono</span>
                 <input value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
+              </label>
+              <label>
+                <span>WhatsApp (para avisarle las cuotas)</span>
+                <input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} placeholder={form.telefono || '3001234567'} />
               </label>
               <label>
                 <span>Correo</span>

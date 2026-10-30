@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useClientes, useConfig } from '../almacen.js'
-import { aFechaISO, calcularCuota, dinero, listaNumeros, nuevoId, sumarMeses } from '../utils.js'
+import { aFechaISO, calcularCuota, dinero, esQuincenal, listaNumeros, nuevoId, sumarDias, sumarMeses } from '../utils.js'
 import { constanciaAutorizacion } from '../legal.js'
 import { abrirVisor } from '../visor.js'
 
@@ -15,11 +15,14 @@ const BILLETES = [10000, 20000, 50000, 100000]
 
 // Cobro en pantalla completa: combina medios de pago, incluido el fiado y el crédito en cuotas.
 // Si la venta ya tiene un cliente elegido en la caja, el fiado y el crédito quedan a su nombre.
+const PORCENTAJES_INICIAL = [10, 20, 30, 40, 50]
+
 export default function Cobro({ total, ticket, articulos, clienteInicial, onCancelar, onConfirmar }) {
   const clientes = useClientes()
   const config = useConfig()
   const tasas = listaNumeros(config.creditoTasas)
-  const plazos = listaNumeros(config.creditoPlazos)
+  const plazosMensual = listaNumeros(config.creditoPlazos)
+  const plazosQuincenal = listaNumeros(config.creditoPlazosQuincenal || '24, 36, 48')
   const tasaMax = Number(config.tasaMaximaMensual) || 0
 
   const [v, setV] = useState({ efectivo: '', transferencia: '', tarjeta: '', fiado: '', credito: '' })
@@ -28,7 +31,9 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
   const [telefono, setTelefono] = useState('')
   const [autoriza, setAutoriza] = useState(false)
   const [cedula, setCedula] = useState(clienteInicial?.cedula || '')
-  const [plazo, setPlazo] = useState(plazos.includes(12) ? 12 : plazos[0] || 12)
+  const [frecuencia, setFrecuencia] = useState('mensual') // 'mensual' o 'quincenal' (cada 15 días)
+  const plazos = esQuincenal(frecuencia) ? plazosQuincenal : plazosMensual
+  const [plazo, setPlazo] = useState(plazosMensual.includes(12) ? 12 : plazosMensual[0] || 12)
   const [tasa, setTasa] = useState(tasas[0] ?? 2)
   const [primera, setPrimera] = useState(sumarMeses(aFechaISO(new Date()), 1))
 
@@ -51,7 +56,7 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
   // Crédito en cuotas: lo que no se financia ni se fía es la cuota inicial
   const inicial = total - num('credito') - num('fiado')
   const inicialPct = total > 0 ? (inicial / total) * 100 : 0
-  const cuota = hayCredito ? calcularCuota(num('credito'), Number(plazo), Number(tasa)) : 0
+  const cuota = hayCredito ? calcularCuota(num('credito'), Number(plazo), Number(tasa), frecuencia) : 0
   const totalCredito = cuota * Number(plazo)
   const errorCredito = !hayCredito
     ? ''
@@ -64,6 +69,13 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
           : ''
 
   const valido = pagado >= total && cambio <= num('efectivo') && clienteListo && !errorCredito
+
+  // Cuota inicial por porcentaje: lo demás se financia; la inicial se anota en efectivo (se puede cambiar de medio)
+  const aplicarInicial = (p) => {
+    const ini = Math.round((total * p) / 100)
+    const otroMedio = num('transferencia') > 0 || num('tarjeta') > 0
+    setV({ ...v, credito: String(Math.max(0, total - ini - num('fiado'))), efectivo: otroMedio ? v.efectivo : String(ini) })
+  }
 
   // Llena el medio con lo que falta para completar el total
   const completar = (k) => setV({ ...v, [k]: String(Math.max(0, total - (pagado - num(k)))) })
@@ -84,7 +96,7 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
     }
     if (cliente && hayCredito) cliente = { ...cliente, cedula: cedula.trim() }
     const credito = hayCredito
-      ? { financiado: num('credito'), plazo: Number(plazo), tasa: Number(tasa), primeraFecha: primera, cuotaInicial: inicial }
+      ? { financiado: num('credito'), plazo: Number(plazo), tasa: Number(tasa), primeraFecha: primera, cuotaInicial: inicial, frecuencia }
       : null
     onConfirmar(pagos, cambio, cliente, credito)
   }
@@ -125,6 +137,25 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
                     <button type="button" className="btn chico" onClick={() => completar(k)}>
                       Completar
                     </button>
+                    {k === 'credito' && (
+                      <>
+                        <span className="gris" style={{ alignSelf: 'center' }}>
+                          Inicial:
+                        </span>
+                        {PORCENTAJES_INICIAL.map((p) => (
+                          <button
+                            type="button"
+                            key={p}
+                            className={'btn chico' + (hayCredito && Math.round(inicialPct) === p ? ' oscuro' : '')}
+                            disabled={p < (Number(config.creditoInicialMin) || 0)}
+                            title={p < (Number(config.creditoInicialMin) || 0) ? 'Menos del mínimo permitido (' + config.creditoInicialMin + '%)' : ''}
+                            onClick={() => aplicarInicial(p)}
+                          >
+                            {p}%
+                          </button>
+                        ))}
+                      </>
+                    )}
                     {k === 'efectivo' &&
                       BILLETES.map((b) => (
                         <button type="button" key={b} className="btn chico" onClick={() => setV({ ...v, efectivo: String(b) })}>
@@ -194,17 +225,33 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
                     <input value={cedula} onChange={(e) => setCedula(e.target.value)} />
                   </label>
                   <label>
+                    <span>Las cuotas se pagan</span>
+                    <select
+                      value={frecuencia}
+                      onChange={(e) => {
+                        const f = e.target.value
+                        setFrecuencia(f)
+                        const lista = esQuincenal(f) ? plazosQuincenal : plazosMensual
+                        setPlazo(lista.includes(esQuincenal(f) ? 24 : 12) ? (esQuincenal(f) ? 24 : 12) : lista[0] || 12)
+                        setPrimera(esQuincenal(f) ? sumarDias(aFechaISO(new Date()), 15) : sumarMeses(aFechaISO(new Date()), 1))
+                      }}
+                    >
+                      <option value="mensual">Cada mes</option>
+                      <option value="quincenal">Cada 15 días (quincenal)</option>
+                    </select>
+                  </label>
+                  <label>
                     <span>Plazo (cuotas)</span>
                     <select value={plazo} onChange={(e) => setPlazo(Number(e.target.value))}>
                       {plazos.map((p) => (
                         <option key={p} value={p}>
-                          {p} meses
+                          {esQuincenal(frecuencia) ? p + ' quincenas (' + (p % 2 === 0 ? p / 2 + ' meses' : p * 0.5 + ' meses') + ')' : p + ' meses'}
                         </option>
                       ))}
                     </select>
                   </label>
                   <label>
-                    <span>Interés mensual (%)</span>
+                    <span>Interés mensual (%){esQuincenal(frecuencia) ? ' · en cada quincena se cobra la mitad' : ''}</span>
                     <select value={tasa} onChange={(e) => setTasa(Number(e.target.value))}>
                       {tasas.map((t) => (
                         <option key={t} value={t}>
@@ -226,7 +273,7 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
                     Valor financiado <strong>{dinero(num('credito'))}</strong>
                   </div>
                   <div>
-                    Cuota mensual <strong>{dinero(cuota)}</strong>
+                    Cuota {esQuincenal(frecuencia) ? 'quincenal' : 'mensual'} <strong>{dinero(cuota)}</strong>
                   </div>
                   <div className="fuerte">
                     Total del crédito ({plazo} cuotas) <strong>{dinero(totalCredito)}</strong>
@@ -258,6 +305,14 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
               )}
             </div>
 
+            {(hayCredito || hayFiado) && falta > 0 && (
+              <div className="aviso-legal" style={{ margin: '8px 0' }}>
+                <strong>Falta cobrar la cuota inicial: {dinero(falta)}.</strong> Lo del crédito solo es lo que se financia; lo demás el cliente lo paga ahora en efectivo, transferencia o tarjeta.{' '}
+                <button type="button" className="enlace" onClick={() => setV({ ...v, efectivo: String(num('efectivo') + falta) })}>
+                  Cobrarla en efectivo
+                </button>
+              </div>
+            )}
             {pagado > total && cambio > num('efectivo') && <p className="error">El cambio solo se puede dar en efectivo.</p>}
             {pideCliente && !clienteListo && <p className="error">Elige un cliente, o escribe el nombre del nuevo y marca su autorización.</p>}
 

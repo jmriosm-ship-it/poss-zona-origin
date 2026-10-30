@@ -1,21 +1,14 @@
 import { useState } from 'react'
 import ContratoCredito from './ContratoCredito.jsx'
-import { useCreditos, pagarCredito, cancelarCredito } from '../almacen.js'
+import { useCreditos, pagarCredito, cancelarCredito, almacenClientes, almacenConfig } from '../almacen.js'
+import { enlaceRecordatorio } from '../recordatorios.js'
 import { useUsuario } from '../auth.js'
 import { dinero, fechaHora, resumenCredito } from '../utils.js'
 
 const fechaLarga = (iso) => new Date(iso + 'T12:00:00').toLocaleDateString('es-CO', { dateStyle: 'medium' })
 
 export function recordatorioCredito(c) {
-  const r = resumenCredito(c)
-  const tel = (c.clienteTelefono || '').replace(/\D/g, '')
-  if (!tel) return null
-  const numero = tel.length === 10 ? '57' + tel : tel
-  const texto =
-    r.mora > 0
-      ? `Hola ${c.clienteNombre}, te recordamos que tienes ${r.vencidas.length} cuota(s) vencida(s) de tu crédito por ${dinero(r.mora)}. Tu saldo total es ${dinero(r.saldo)}. ¿Cuándo podemos esperar tu pago? ¡Gracias!`
-      : `Hola ${c.clienteNombre}, te recordamos que tu próxima cuota de ${dinero(r.proxima?.pendiente || 0)} vence el ${r.proxima ? fechaLarga(r.proxima.vence) : ''}. ¡Gracias!`
-  return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`
+  return enlaceRecordatorio(c, almacenClientes.leer().find((x) => x.id === c.clienteId), almacenConfig.leer())
 }
 
 // Detalle de un crédito: cuotas, pagos, contrato y recordatorio
@@ -35,7 +28,7 @@ export default function CreditoDetalle({ creditoId, onCerrar, onPagar }) {
           <div>
             <h2>Crédito · {credito.clienteNombre}</h2>
             <p className="sub">
-              Venta {credito.ventaEtiqueta || '#' + String(credito.ventaNumero).padStart(5, '0')} · {credito.plazo} cuotas de {dinero(credito.cuotaValor)} · {credito.tasa}% mensual
+              Venta {credito.ventaEtiqueta || '#' + String(credito.ventaNumero).padStart(5, '0')} · {credito.plazo} cuotas {credito.frecuencia === 'quincenal' ? 'quincenales ' : ''}de {dinero(credito.cuotaValor)} · {credito.tasa}% mensual
             </p>
           </div>
           <button className="boton-icono" onClick={onCerrar} aria-label="Cerrar">

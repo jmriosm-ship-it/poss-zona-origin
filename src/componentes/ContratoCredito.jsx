@@ -1,3 +1,4 @@
+import { imprimir } from '../impresion.js'
 import { useConfig } from '../almacen.js'
 import { dinero, fechaHora, resumenCredito } from '../utils.js'
 
@@ -75,12 +76,12 @@ export default function ContratoCredito({ credito, onCerrar }) {
                   <strong>Plazo e interés</strong>
                 </td>
                 <td>
-                  {credito.plazo} cuotas mensuales · {credito.tasa}% mensual
+                  {credito.plazo} cuotas {credito.frecuencia === 'quincenal' ? 'quincenales (cada 15 días)' : 'mensuales'} · {credito.tasa}% mensual
                 </td>
               </tr>
               <tr>
                 <td>
-                  <strong>Cuota mensual</strong>
+                  <strong>Cuota {credito.frecuencia === 'quincenal' ? 'quincenal' : 'mensual'}</strong>
                 </td>
                 <td>{dinero(credito.cuotaValor)}</td>
               </tr>
@@ -160,7 +161,7 @@ export default function ContratoCredito({ credito, onCerrar }) {
           <button className="btn" onClick={onCerrar}>
             Cerrar
           </button>
-          <button className="btn oscuro" onClick={() => window.print()}>
+          <button className="btn oscuro" onClick={() => imprimir()}>
             Imprimir contrato
           </button>
         </div>

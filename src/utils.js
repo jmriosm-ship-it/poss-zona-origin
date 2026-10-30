@@ -154,22 +154,32 @@ export function sumarMeses(fechaISO, meses) {
   return aFechaISO(destino)
 }
 
-// Cuota fija mensual (sistema francés), igual que el simulador de la página web
-export function calcularCuota(financiado, plazo, tasaPct) {
-  const i = tasaPct / 100
+// Suma días a una fecha "AAAA-MM-DD"
+export function sumarDias(fechaISO, dias) {
+  const [y, m, d] = fechaISO.split('-').map(Number)
+  return aFechaISO(new Date(y, m - 1, d + dias))
+}
+
+// El interés se anota como % mensual; en cuotas quincenales cada quincena cobra la mitad
+export const esQuincenal = (frecuencia) => frecuencia === 'quincenal'
+const tasaPorCuota = (tasaPct, frecuencia) => (esQuincenal(frecuencia) ? tasaPct / 2 : tasaPct)
+
+// Cuota fija (sistema francés), igual que el simulador de la página web; mensual o quincenal
+export function calcularCuota(financiado, plazo, tasaPct, frecuencia = 'mensual') {
+  const i = tasaPorCuota(tasaPct, frecuencia) / 100
   const cuota = i > 0 ? (financiado * i) / (1 - (1 + i) ** -plazo) : financiado / plazo
   return Math.round(cuota)
 }
 
 // Calendario de cuotas: la última se ajusta para que la suma sea exacta
-export function armarCuotas(financiado, plazo, tasaPct, primeraFecha) {
-  const cuota = calcularCuota(financiado, plazo, tasaPct)
+export function armarCuotas(financiado, plazo, tasaPct, primeraFecha, frecuencia = 'mensual') {
+  const cuota = calcularCuota(financiado, plazo, tasaPct, frecuencia)
   const total = cuota * plazo
   return {
     cuotaValor: cuota,
     totalCredito: total,
     intereses: total - financiado,
-    cuotas: Array.from({ length: plazo }, (_, k) => ({ n: k + 1, vence: sumarMeses(primeraFecha, k), valor: k === plazo - 1 ? total - cuota * (plazo - 1) : cuota })),
+    cuotas: Array.from({ length: plazo }, (_, k) => ({ n: k + 1, vence: esQuincenal(frecuencia) ? sumarDias(primeraFecha, 15 * k) : sumarMeses(primeraFecha, k), valor: k === plazo - 1 ? total - cuota * (plazo - 1) : cuota })),
   }
 }
 
