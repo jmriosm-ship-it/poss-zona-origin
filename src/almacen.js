@@ -177,7 +177,11 @@ export const useNomina = hook(almacenNomina)
 export const useConfig = hook(almacenConfig)
 
 // ---------- Productos ----------
-export const guardarProducto = (p) => guardarEn(almacenProductos, p)
+export function guardarProducto(p) {
+  const previo = almacenProductos.leer().find((x) => x.id === p.id)
+  registrarAccion(previo ? 'Editó un producto' : 'Creó un producto', p.nombre + (previo && previo.precio !== p.precio ? ' · precio $' + previo.precio + ' → $' + p.precio : ''))
+  guardarEn(almacenProductos, p)
+}
 export function borrarProducto(id) {
   registrarAccion('Borró un producto', almacenProductos.leer().find((p) => p.id === id)?.nombre || '')
   quitarDe(almacenProductos, id)

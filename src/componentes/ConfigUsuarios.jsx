@@ -26,14 +26,18 @@ function Permisos({ u }) {
             </label>
           ))}
           <label className="casilla-acepto">
+            <input type="checkbox" checked={p.editarProductos !== false} onChange={(e) => poner({ editarProductos: e.target.checked })} />
+            <span>Puede crear y editar productos (sin ver costos)</span>
+          </label>
+          <label className="casilla-acepto">
             <input type="checkbox" checked={Boolean(p.anular)} onChange={(e) => poner({ anular: e.target.checked })} />
             <span>Puede anular ventas y hacer devoluciones</span>
           </label>
         </div>
       </div>
       <label>
-        <span>Descuento máximo sin PIN (%)</span>
-        <input type="number" min="0" max="100" value={p.descuentoMax ?? 10} onChange={(e) => poner({ descuentoMax: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} style={{ width: 90 }} />
+        <span>Descuento máximo sin PIN (%) · 100 = sin límite</span>
+        <input type="number" min="0" max="100" value={p.descuentoMax ?? 100} onChange={(e) => poner({ descuentoMax: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })} style={{ width: 90 }} />
       </label>
     </div>
   )

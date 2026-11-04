@@ -3,7 +3,7 @@ import Icono from '../componentes/Iconos.jsx'
 import FormProducto from '../componentes/FormProducto.jsx'
 import HistorialProducto from '../componentes/HistorialProducto.jsx'
 import { useConfig, useProductos, useVentas, guardarProducto, borrarProducto, reemplazarProductos } from '../almacen.js'
-import { useUsuario } from '../auth.js'
+import { useUsuario, puedeEditarProductos } from '../auth.js'
 import { listarCategorias } from '../categorias.js'
 import { csvAProductos, productosACSV, PLANTILLA_CSV, descargar } from '../csv.js'
 import { dinero } from '../utils.js'
@@ -22,7 +22,9 @@ export default function Inventario() {
   const ventas = useVentas()
   const config = useConfig()
   const porReponer = analizarInventario(productos, ventas)
-  const admin = useUsuario()?.rol === 'admin'
+  const yo = useUsuario()
+  const admin = yo?.rol === 'admin'
+  const editar = puedeEditarProductos(yo) // el trabajador también edita productos, pero sin ver costos
   const [buscar, setBuscar] = useState('')
   const [categoria, setCategoria] = useState(null) // null = Todas; si no, la clave de la categoría elegida
   const [editando, setEditando] = useState(null) // null = cerrado, 'nuevo', { nuevoEn } o un producto
@@ -78,15 +80,19 @@ export default function Inventario() {
             {productos.length} modelos · {unidades} unidades{admin && ` · ${dinero(valorCosto)} a costo`}
           </p>
         </div>
-        {admin && (
+        {editar && (
           <div className="cabecera-acciones">
-            <label className="btn" style={{ cursor: 'pointer' }}>
-              <Icono nombre="subir" tam={18} /> Importar CSV
-              <input type="file" accept=".csv,text/csv" onChange={importar} hidden />
-            </label>
-            <button className="btn" onClick={() => descargar('inventario-zona-originals.csv', productosACSV(productos))}>
-              <Icono nombre="descargar" tam={18} /> Exportar
-            </button>
+            {admin && (
+              <>
+                <label className="btn" style={{ cursor: 'pointer' }}>
+                  <Icono nombre="subir" tam={18} /> Importar CSV
+                  <input type="file" accept=".csv,text/csv" onChange={importar} hidden />
+                </label>
+                <button className="btn" onClick={() => descargar('inventario-zona-originals.csv', productosACSV(productos))}>
+                  <Icono nombre="descargar" tam={18} /> Exportar
+                </button>
+              </>
+            )}
             <button className="btn oscuro" onClick={nuevo}>
               <Icono nombre="mas" tam={18} /> {elegida ? `Nuevo en ${elegida.nombre}` : 'Nuevo producto'}
             </button>
@@ -159,7 +165,7 @@ export default function Inventario() {
               : elegida
                 ? `Todavía no hay productos en ${elegida.nombre}.`
                 : 'Aún no hay productos. Crea uno con "Nuevo producto" o importa un CSV.'}
-            {admin && !q && (
+            {editar && !q && (
               <button className="btn oscuro chico" style={{ marginTop: 12 }} onClick={nuevo}>
                 {elegida ? `Agregar el primero en ${elegida.nombre}` : 'Nuevo producto'}
               </button>
@@ -176,7 +182,7 @@ export default function Inventario() {
                 {admin && <th>Costo</th>}
                 <th>Precio</th>
                 <th>Estado</th>
-                {admin && <th />}
+                {editar && <th />}
               </tr>
             </thead>
             <tbody>
@@ -208,17 +214,21 @@ export default function Inventario() {
                     <td>
                       <span className={'badge ' + e.clase}>{e.texto}</span>
                     </td>
-                    {admin && (
+                    {editar && (
                       <td className="acciones">
-                        <button className="enlace" onClick={() => setHistorial(p)}>
-                          Historial
-                        </button>
+                        {admin && (
+                          <button className="enlace" onClick={() => setHistorial(p)}>
+                            Historial
+                          </button>
+                        )}
                         <button className="enlace" style={{ marginLeft: 10 }} onClick={() => setEditando(p)}>
                           Editar
                         </button>
-                        <button className="enlace peligro" onClick={() => confirm(`¿Borrar "${p.nombre}"?`) && borrarProducto(p.id)}>
-                          Borrar
-                        </button>
+                        {admin && (
+                          <button className="enlace peligro" onClick={() => confirm(`¿Borrar "${p.nombre}"?`) && borrarProducto(p.id)}>
+                            Borrar
+                          </button>
+                        )}
                       </td>
                     )}
                   </tr>

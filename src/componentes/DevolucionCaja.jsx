@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useGastos, registrarDevolucionDinero } from '../almacen.js'
-import { useUsuario, puedeHacer, verificarPinAdmin } from '../auth.js'
+import { useUsuario, puedeHacer } from '../auth.js'
+import PedirPinAdmin from './PedirPinAdmin.jsx'
 import { dinero, fechaHora } from '../utils.js'
 
 // Devolución de dinero desde la Caja (Ctrl L): se escribe el motivo y el valor y se acepta.
@@ -12,21 +13,24 @@ export default function DevolucionCaja({ onCerrar }) {
   const [motivo, setMotivo] = useState('')
   const [valor, setValor] = useState('')
   const [aviso, setAviso] = useState('')
+  const [pidePin, setPidePin] = useState(false)
   const v = Number(valor) || 0
   const recientes = gastos.filter((g) => g.devolucion).slice(0, 5)
 
-  async function aceptar(e) {
-    e.preventDefault()
-    if (!(v > 0) || !motivo.trim()) return
-    if (!puedeHacer(usuario, 'anular')) {
-      const pin = prompt('Para devolver dinero hace falta el PIN del administrador:')
-      if (!pin) return
-      if (!(await verificarPinAdmin(pin))) return setAviso('PIN incorrecto.')
-    }
+  function registrar() {
     registrarDevolucionDinero(motivo.trim(), v)
     setAviso('Registrado: ' + dinero(v) + ' (' + motivo.trim() + ').')
     setMotivo('')
     setValor('')
+    setPidePin(false)
+  }
+
+  function aceptar(e) {
+    e.preventDefault()
+    if (!(v > 0) || !motivo.trim()) return
+    // sin permiso de devoluciones hace falta el PIN del administrador
+    if (!puedeHacer(usuario, 'anular')) return setPidePin(true)
+    registrar()
   }
 
   return (
@@ -75,6 +79,7 @@ export default function DevolucionCaja({ onCerrar }) {
           </button>
         </div>
       </form>
+      {pidePin && <PedirPinAdmin detalle={'Devolución de ' + dinero(v) + ': ' + motivo} onOk={registrar} onCancelar={() => setPidePin(false)} />}
     </div>
   )
 }

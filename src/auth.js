@@ -56,9 +56,11 @@ const PANTALLAS_VENDEDOR = ['inicio', 'caja', 'inventario']
 export const nombreRol = (rol) => (rol === 'admin' ? 'Administrador' : 'Trabajador')
 // El administrador puede darle más permisos a cada trabajador (pantallas extra, anular/devolver, descuento más alto)
 export const puede = (usuario, pantalla) => usuario?.rol === 'admin' || PANTALLAS_VENDEDOR.includes(pantalla) || Boolean(usuario?.permisos?.pantallas?.includes(pantalla))
+// Los trabajadores pueden crear y editar productos, salvo que el administrador se lo quite en Permisos
+export const puedeEditarProductos = (usuario) => usuario?.rol === 'admin' || usuario?.permisos?.editarProductos !== false
 export const puedeHacer = (usuario, accion) => usuario?.rol === 'admin' || Boolean(usuario?.permisos?.[accion])
 // Descuento máximo (en %) que el trabajador puede dar solo; más que eso pide el PIN del administrador
-export const descuentoMaximo = (usuario) => (usuario?.rol === 'admin' ? 100 : Number(usuario?.permisos?.descuentoMax ?? 10))
+export const descuentoMaximo = (usuario) => (usuario?.rol === 'admin' ? 100 : Number(usuario?.permisos?.descuentoMax ?? 100))
 export async function verificarPinAdmin(pin) {
   const h = await hashPin(String(pin).trim())
   return almacenUsuarios.leer().some((u) => u.rol === 'admin' && u.pinHash === h)

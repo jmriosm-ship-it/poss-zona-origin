@@ -16,7 +16,8 @@ import BuscadorProductos from '../componentes/BuscadorProductos.jsx'
 import { activarSonido, pitar, useLector } from '../lector.js'
 import { listarCategorias } from '../categorias.js'
 import { useProductos, useClientes, useVentas, usePromos, useConfig, useTurnos, registrarVenta, registrarCredito, guardarCliente, registrarAccion } from '../almacen.js'
-import { useUsuario, descuentoMaximo, verificarPinAdmin } from '../auth.js'
+import { useUsuario, descuentoMaximo } from '../auth.js'
+import PedirPinAdmin from '../componentes/PedirPinAdmin.jsx'
 import { armarCuotas, cajaDe, dinero, etiquetaNumero, fechaHora, mejorPromo, puntosCliente, siguienteNumero } from '../utils.js'
 import { useCajaActual } from '../equipo.js'
 
@@ -53,6 +54,7 @@ export default function Caja() {
   const [sueldoAbierto, setSueldoAbierto] = useState(false)
   const [devAbierta, setDevAbierta] = useState(false)
   const [descOk, setDescOk] = useState(0) // descuento autorizado con el PIN del administrador
+  const [pidePin, setPidePin] = useState(false)
   const [vista, setVista] = useState('vender') // 'vender' o 'caja' (la caja del día completa)
   const entrada = useRef(null)
   const temporizadorAviso = useRef(null)
@@ -107,16 +109,17 @@ export default function Caja() {
   const base = subtotal - descPromo
   const d = Number(descuento) || 0
   const descManual = limitar(Math.round(tipoDesc === '%' ? (base * d) / 100 : d), 0, base)
-  const limiteDesc = Math.round((base * descuentoMaximo(usuario)) / 100)
-  const exigePin = descManual > limiteDesc && descManual > descOk
-  async function autorizarDescuento() {
-    const pin = prompt('Este descuento pasa el límite de ' + descuentoMaximo(usuario) + '%. Pide al administrador que escriba su PIN:')
-    if (!pin) return
-    if (await verificarPinAdmin(pin)) {
-      setDescOk(descManual)
-      setCobrando(false)
-      registrarAccion('Descuento autorizado con PIN de administrador', '$' + descManual + ' en un ticket de $' + base)
-    } else alert('PIN incorrecto.')
+  // rebaja de precio por producto (se hace al cobrar): cuenta junto con el descuento para el límite del trabajador
+  const rebaja = carrito.reduce((s, i) => s + Math.max(0, (i.precioOriginal ?? i.precio) - i.precio) * i.cantidad, 0)
+  const subtotalNormal = carrito.reduce((s, i) => s + (i.precioOriginal ?? i.precio) * i.cantidad, 0)
+  const limiteDesc = Math.round((subtotalNormal * descuentoMaximo(usuario)) / 100)
+  const exigePin = descManual + rebaja > limiteDesc && descManual + rebaja > descOk
+  const cambiarPrecio = (id, valor) => setCarrito((c) => c.map((i) => (i.varianteId === id ? { ...i, precio: limitar(Math.round(Number(valor) || 0), 0, i.precioOriginal ?? i.precio) } : i)))
+  // el administrador escribe su PIN en una ventana (la app de escritorio no permite prompt)
+  function descuentoAutorizado() {
+    setDescOk(descManual + rebaja)
+    setPidePin(false)
+    registrarAccion('Descuento autorizado con PIN de administrador', '$' + (descManual + rebaja) + ' en un ticket de $' + subtotalNormal)
   }
   const maxPuntos = config.valorPunto > 0 ? Math.floor((base - descManual) / config.valorPunto) : 0
   const puntosUsados = limitar(Math.floor(Number(usarPuntos) || 0), 0, Math.min(puntosDisponibles, maxPuntos))
@@ -178,6 +181,7 @@ export default function Caja() {
     garantiaDias: producto.garantiaDias || 0,
     detalle: [variante.talla, variante.color].filter(Boolean).join(' '),
     precio: producto.precio,
+    precioOriginal: producto.precio,
     costo: producto.costo,
     cantidad: 0,
     max: variante.stock,
@@ -572,7 +576,7 @@ export default function Caja() {
               {exigePin && (
                 <div className="aviso-legal" style={{ margin: '6px 0' }}>
                   Descuento sobre el límite ({descuentoMaximo(usuario)}%).{' '}
-                  <button className="enlace" onClick={autorizarDescuento}>
+                  <button className="enlace" onClick={() => setPidePin(true)}>
                     Autorizar con PIN del administrador
                   </button>
                 </div>
@@ -643,10 +647,24 @@ export default function Caja() {
           onCerrar={() => setElegir(null)}
         />
       )}
+      {pidePin && <PedirPinAdmin detalle={'Este descuento pasa el límite de ' + descuentoMaximo(usuario) + '%. Pide al administrador que escriba su PIN.'} onOk={descuentoAutorizado} onCancelar={() => setPidePin(false)} />}
       {cupoAbierto && <SacarCupo onCerrar={() => setCupoAbierto(false)} />}
       {sueldoAbierto && <PagarSueldo onCerrar={() => setSueldoAbierto(false)} />}
       {devAbierta && <DevolucionCaja onCerrar={() => setDevAbierta(false)} />}
-      {cobrando && !exigePin && <Cobro total={total} ticket={etiquetaTicket} articulos={articulos} clienteInicial={cliente} onCancelar={() => setCobrando(false)} onConfirmar={confirmarVenta} />}
+      {cobrando && (
+        <Cobro
+          total={total}
+          ticket={etiquetaTicket}
+          articulos={articulos}
+          clienteInicial={cliente}
+          lineas={carrito}
+          onPrecio={cambiarPrecio}
+          exigePin={exigePin}
+          onAutorizar={() => setPidePin(true)}
+          onCancelar={() => setCobrando(false)}
+          onConfirmar={confirmarVenta}
+        />
+      )}
       {recibo && (
         <Recibo
           venta={recibo}

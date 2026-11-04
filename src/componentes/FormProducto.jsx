@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Icono from './Iconos.jsx'
 import { useConfig, useProductos } from '../almacen.js'
+import { useUsuario } from '../auth.js'
 import { imeiConDigitoValido, normalizarSerial, nuevoId, serialValido } from '../utils.js'
 
 export const CONDICIONES = ['Nuevo', 'Open box', 'Usado']
@@ -61,6 +62,7 @@ function GestorImeis({ imeis, onCambiar, ocupados }) {
 // Ventana para crear o editar un producto con sus variantes (capacidad y color)
 export default function FormProducto({ producto, categoriaInicial = '', onGuardar, onCerrar }) {
   const productos = useProductos()
+  const esAdmin = useUsuario()?.rol === 'admin' // el costo solo lo ve y lo cambia el administrador
   const CATEGORIAS = useConfig().categorias
   const [p, setP] = useState(
     producto || {
@@ -162,10 +164,12 @@ export default function FormProducto({ producto, categoriaInicial = '', onGuarda
             <span>Garantía (días, 0 = sin garantía)</span>
             <input type="number" min="0" value={p.garantiaDias} onChange={(e) => cambiar('garantiaDias', e.target.value)} placeholder="Ej: 365" />
           </label>
-          <label>
-            <span>Costo (lo que te costó)</span>
-            <input type="number" min="0" value={p.costo} onChange={(e) => cambiar('costo', e.target.value)} />
-          </label>
+          {esAdmin && (
+            <label>
+              <span>Costo (lo que te costó)</span>
+              <input type="number" min="0" value={p.costo} onChange={(e) => cambiar('costo', e.target.value)} />
+            </label>
+          )}
           <label>
             <span>Precio de venta</span>
             <input type="number" min="0" value={p.precio} onChange={(e) => cambiar('precio', e.target.value)} />

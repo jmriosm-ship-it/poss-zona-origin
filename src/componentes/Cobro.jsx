@@ -17,7 +17,7 @@ const BILLETES = [10000, 20000, 50000, 100000]
 // Si la venta ya tiene un cliente elegido en la caja, el fiado y el crédito quedan a su nombre.
 const PORCENTAJES_INICIAL = [10, 20, 30, 40, 50]
 
-export default function Cobro({ total, ticket, articulos, clienteInicial, onCancelar, onConfirmar }) {
+export default function Cobro({ total, ticket, articulos, clienteInicial, lineas = [], onPrecio, exigePin = false, onAutorizar, onCancelar, onConfirmar }) {
   const clientes = useClientes()
   const config = useConfig()
   const tasas = listaNumeros(config.creditoTasas)
@@ -68,7 +68,7 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
           ? `El interés (${tasa}%) supera el tope mensual permitido (${tasaMax}%).`
           : ''
 
-  const valido = pagado >= total && cambio <= num('efectivo') && clienteListo && !errorCredito
+  const valido = pagado >= total && cambio <= num('efectivo') && clienteListo && !errorCredito && !exigePin
 
   // Cuota inicial por porcentaje: lo demás se financia; la inicial se anota en efectivo (se puede cambiar de medio)
   const aplicarInicial = (p) => {
@@ -119,6 +119,32 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
 
         <div className="cobro-cuerpo">
           <div className="cobro-izq">
+            {lineas.length > 0 && onPrecio && (
+              <div className="cobro-productos">
+                <strong>Productos</strong>
+                <span className="gris"> · puedes bajar el precio de un producto si le haces una rebaja</span>
+                <table className="tabla" style={{ marginTop: 6 }}>
+                  <tbody>
+                    {lineas.map((l) => {
+                      const normal = l.precioOriginal ?? l.precio
+                      return (
+                        <tr key={l.varianteId}>
+                          <td>
+                            {l.nombre}
+                            {l.detalle && <small className="gris"> {l.detalle}</small>}
+                          </td>
+                          <td>x {l.cantidad}</td>
+                          <td style={{ width: 150 }}>
+                            <input type="number" min="0" max={normal} value={l.precio} onChange={(e) => onPrecio(l.varianteId, e.target.value)} style={{ width: 120 }} />
+                            {l.precio < normal && <small className="gris" style={{ display: 'block' }}>Normal {dinero(normal)}</small>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className="metodos">
               {MEDIOS.map(([k, texto], i) => (
                 <div className={'metodo' + (num(k) > 0 ? ' con-valor' : '')} key={k}>
@@ -310,6 +336,14 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, onCanc
                 <strong>Falta cobrar la cuota inicial: {dinero(falta)}.</strong> Lo del crédito solo es lo que se financia; lo demás el cliente lo paga ahora en efectivo, transferencia o tarjeta.{' '}
                 <button type="button" className="enlace" onClick={() => setV({ ...v, efectivo: String(num('efectivo') + falta) })}>
                   Cobrarla en efectivo
+                </button>
+              </div>
+            )}
+            {exigePin && (
+              <div className="aviso-legal" style={{ margin: '8px 0' }}>
+                <strong>La rebaja pasa el límite permitido.</strong>{' '}
+                <button type="button" className="enlace" onClick={onAutorizar}>
+                  Autorizar con PIN del administrador
                 </button>
               </div>
             )}
