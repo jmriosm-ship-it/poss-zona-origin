@@ -10,6 +10,7 @@ export const TIPOS = {
   abono: 'Abono de cliente',
   pagoCredito: 'Pago de crédito',
   gasto: 'Gasto',
+  pagoFinanciera: 'Pago de financiera',
   ingreso: 'Ingreso a caja',
   egreso: 'Egreso de caja',
   apertura: 'Apertura de caja',
@@ -33,6 +34,7 @@ const GRUPO_DE = {
   pagoProveedor: 'compras',
   abono: 'cobros',
   pagoCredito: 'cobros',
+  pagoFinanciera: 'cobros',
   gasto: 'gastos',
   ingreso: 'caja',
   egreso: 'caja',
@@ -41,13 +43,13 @@ const GRUPO_DE = {
 }
 
 // +1 = dinero que entra, -1 = dinero que sale, 0 = solo informa
-const SIGNO_DE = { venta: 1, devolucion: -1, anulacion: -1, compra: 0, pagoProveedor: -1, abono: 1, pagoCredito: 1, gasto: -1, ingreso: 1, egreso: -1, apertura: 0, cierre: 0 }
+const SIGNO_DE = { venta: 1, devolucion: -1, anulacion: -1, compra: 0, pagoProveedor: -1, abono: 1, pagoCredito: 1, pagoFinanciera: 1, gasto: -1, ingreso: 1, egreso: -1, apertura: 0, cierre: 0 }
 
 const resumen = (items) => items.map((i) => `${i.cantidad} ${i.nombre}${i.detalle ? ' ' + i.detalle : ''}`).join(', ')
 
 import { etiquetaNumero } from './utils.js'
 
-export function construirMovimientos({ ventas, compras, abonos, creditos, gastos, movimientos, turnos, clientes }) {
+export function construirMovimientos({ ventas, compras, abonos, creditos, gastos, movimientos, turnos, clientes, financiera = [] }) {
   const lista = []
   const agregar = (tipo, id, fecha, detalle, valor, extra = {}) =>
     lista.push({ clave: tipo + ':' + id, tipo, grupo: GRUPO_DE[tipo], signo: SIGNO_DE[tipo], fecha, detalle, valor, ...extra })
@@ -80,6 +82,7 @@ export function construirMovimientos({ ventas, compras, abonos, creditos, gastos
   for (const c of creditos) {
     for (const p of c.pagos) agregar('pagoCredito', p.id, p.fecha, `${c.clienteNombre} · crédito de la venta ${c.ventaEtiqueta || num(c.ventaNumero)} · ${p.medio}`, p.valor)
   }
+  for (const f of financiera) agregar('pagoFinanciera', f.id, f.fecha, `${f.financiera || 'Financiera'} · venta ${f.ventaEtiqueta}${f.tipo === 'ajuste' ? ' · diferencia con la que se cerró' : ''}`, f.valor)
   for (const g of gastos) agregar('gasto', g.id, g.fecha, g.concepto && g.concepto !== g.categoria ? `${g.categoria} · ${g.concepto}` : g.categoria, g.valor)
   for (const m of movimientos.filter((x) => !x.gastoId)) agregar(m.tipo === 'ingreso' ? 'ingreso' : 'egreso', m.id, m.fecha, m.motivo, m.valor)
 

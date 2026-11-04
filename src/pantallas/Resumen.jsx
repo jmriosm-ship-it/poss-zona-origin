@@ -1,8 +1,9 @@
+import { useFinanciera } from '../almacen.js'
 import Icono from '../componentes/Iconos.jsx'
 import Grafica from '../componentes/Grafica.jsx'
 import { useProductos, useVentas, useGastos, useCompras, useClientes, useAbonos, useCreditos } from '../almacen.js'
 import { calcular } from '../reportes.js'
-import { dinero, etiquetaVenta, fechaLarga, fechaHora, rangoPeriodo, resumenCredito, saldoCliente, saldoCompra } from '../utils.js'
+import { dinero, etiquetaVenta, fechaLarga, fechaHora, rangoPeriodo, resumenCredito, saldoCliente, saldoCompra, saldoFinanciera } from '../utils.js'
 
 // Resumen del mes con datos reales
 export default function Resumen({ irA }) {
@@ -13,8 +14,9 @@ export default function Resumen({ irA }) {
   const clientes = useClientes()
   const abonos = useAbonos()
   const creditos = useCreditos()
+  const cobrosFin = useFinanciera()
 
-  const r = calcular(ventas, gastos, rangoPeriodo('mes'), creditos)
+  const r = calcular(ventas, gastos, rangoPeriodo('mes'), creditos, cobrosFin)
   const mes = new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
   const margen = r.ingresos > 0 ? Math.round((r.neta / r.ingresos) * 100) : 0
 
@@ -24,7 +26,7 @@ export default function Resumen({ irA }) {
 
   const deudores = clientes.filter((c) => saldoCliente(c.id, ventas, abonos) > 0)
   const activos = creditos.filter((c) => c.estado === 'activo').map((c) => resumenCredito(c)).filter((r) => r.saldo > 0)
-  const porCobrar = deudores.reduce((s, c) => s + saldoCliente(c.id, ventas, abonos), 0) + activos.reduce((s, r) => s + r.saldo, 0)
+  const porCobrar = deudores.reduce((s, c) => s + saldoCliente(c.id, ventas, abonos), 0) + activos.reduce((s, r) => s + r.saldo, 0) + ventas.reduce((s, v) => s + saldoFinanciera(v, cobrosFin), 0)
   const porPagar = compras.filter((c) => saldoCompra(c) > 0)
   const totalPagar = porPagar.reduce((s, c) => s + saldoCompra(c), 0)
   const ultimas = ventas.slice(0, 5)

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Grafica from '../componentes/Grafica.jsx'
 import Calendario from '../componentes/Calendario.jsx'
-import { useVentas, useGastos, useCreditos, registrarGasto, borrarGasto } from '../almacen.js'
+import { useVentas, useGastos, useCreditos, useFinanciera, registrarGasto, borrarGasto } from '../almacen.js'
 import { calcular } from '../reportes.js'
 import { PERIODOS, aFechaISO, dinero, fechaLarga, rangoPeriodo } from '../utils.js'
 
@@ -10,6 +10,7 @@ const CATEGORIAS_GASTO = ['Arriendo', 'Servicios', 'Nómina', 'Publicidad', 'Bol
 export default function Ganancias() {
   const ventas = useVentas()
   const gastos = useGastos()
+  const cobrosFin = useFinanciera()
   const creditos = useCreditos()
   const [periodo, setPeriodo] = useState('mes')
   const [desde, setDesde] = useState(aFechaISO(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
@@ -19,7 +20,7 @@ export default function Ganancias() {
   // "Fechas": del día de inicio al día final, incluido
   const rangoFechas = [new Date(desde + 'T00:00:00'), new Date(new Date(hasta + 'T00:00:00').getTime() + 864e5)]
   const rango = periodo === 'rango' ? rangoFechas : rangoPeriodo(periodo === 'calendario' ? 'mes' : periodo)
-  const r = calcular(ventas, gastos, rango, creditos)
+  const r = calcular(ventas, gastos, rango, creditos, cobrosFin)
   const margen = r.ingresos > 0 ? Math.round((r.neta / r.ingresos) * 100) : 0
 
   function agregarGasto(e) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useClientes, useConfig } from '../almacen.js'
+import { useClientes, useConfig, useVentas } from '../almacen.js'
 import { aFechaISO, calcularCuota, dinero, esQuincenal, listaNumeros, nuevoId, sumarDias, sumarMeses } from '../utils.js'
 import { constanciaAutorizacion } from '../legal.js'
 import { abrirVisor } from '../visor.js'
@@ -10,6 +10,7 @@ const MEDIOS = [
   ['tarjeta', 'Tarjeta'],
   ['fiado', 'Fiado'],
   ['credito', 'Crédito (cuotas)'],
+  ['financiera', 'Financiera (te paga después)'],
 ]
 const BILLETES = [10000, 20000, 50000, 100000]
 
@@ -25,7 +26,10 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, lineas
   const plazosQuincenal = listaNumeros(config.creditoPlazosQuincenal || '24, 36, 48')
   const tasaMax = Number(config.tasaMaximaMensual) || 0
 
-  const [v, setV] = useState({ efectivo: '', transferencia: '', tarjeta: '', fiado: '', credito: '' })
+  const ventasAntes = useVentas()
+  const [v, setV] = useState({ efectivo: '', transferencia: '', tarjeta: '', fiado: '', credito: '', financiera: '' })
+  const [nombreFin, setNombreFin] = useState('')
+  const financieras = [...new Set(ventasAntes.map((x) => x.financieraNombre).filter(Boolean))]
   const [clienteId, setClienteId] = useState('')
   const [nombre, setNombre] = useState('')
   const [telefono, setTelefono] = useState('')
@@ -45,7 +49,8 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, lineas
   }, [onCancelar])
 
   const num = (k) => Number(v[k]) || 0
-  const pagado = num('efectivo') + num('transferencia') + num('tarjeta') + num('fiado') + num('credito')
+  const pagado = num('efectivo') + num('transferencia') + num('tarjeta') + num('fiado') + num('credito') + num('financiera')
+  const hayFinanciera = num('financiera') > 0
   const falta = total - pagado
   const cambio = Math.max(0, pagado - total)
   const hayFiado = num('fiado') > 0
@@ -54,7 +59,7 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, lineas
   const clienteListo = !pideCliente || clienteId !== '' || (nombre.trim() !== '' && autoriza)
 
   // Crédito en cuotas: lo que no se financia ni se fía es la cuota inicial
-  const inicial = total - num('credito') - num('fiado')
+  const inicial = total - num('credito') - num('fiado') - num('financiera')
   const inicialPct = total > 0 ? (inicial / total) * 100 : 0
   const cuota = hayCredito ? calcularCuota(num('credito'), Number(plazo), Number(tasa), frecuencia) : 0
   const totalCredito = cuota * Number(plazo)
@@ -68,7 +73,8 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, lineas
           ? `El interés (${tasa}%) supera el tope mensual permitido (${tasaMax}%).`
           : ''
 
-  const valido = pagado >= total && cambio <= num('efectivo') && clienteListo && !errorCredito && !exigePin
+  const financieraLista = !hayFinanciera || nombreFin.trim() !== ''
+  const valido = pagado >= total && cambio <= num('efectivo') && clienteListo && !errorCredito && !exigePin && financieraLista
 
   // Cuota inicial por porcentaje: lo demás se financia; la inicial se anota en efectivo (se puede cambiar de medio)
   const aplicarInicial = (p) => {
@@ -83,7 +89,7 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, lineas
   function confirmar(e) {
     e.preventDefault()
     if (!valido) return
-    const pagos = MEDIOS.filter(([k]) => num(k) > 0).map(([k, texto]) => ({ medio: k === 'credito' ? 'Crédito' : texto, valor: num(k) }))
+    const pagos = MEDIOS.filter(([k]) => num(k) > 0).map(([k, texto]) => ({ medio: k === 'credito' ? 'Crédito' : k === 'financiera' ? 'Financiera' : texto, valor: num(k) }))
     let cliente = clienteInicial || null
     if (pideCliente) {
       cliente = clientes.find((c) => c.id === clienteId) || {
@@ -98,7 +104,7 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, lineas
     const credito = hayCredito
       ? { financiado: num('credito'), plazo: Number(plazo), tasa: Number(tasa), primeraFecha: primera, cuotaInicial: inicial, frecuencia }
       : null
-    onConfirmar(pagos, cambio, cliente, credito)
+    onConfirmar(pagos, cambio, cliente, credito, hayFinanciera ? { financieraNombre: nombreFin.trim() } : null)
   }
 
   return (
@@ -240,6 +246,24 @@ export default function Cobro({ total, ticket, articulos, clienteInicial, lineas
                     </label>
                   </>
                 )}
+              </div>
+            )}
+
+            {hayFinanciera && (
+              <div className="cliente-box">
+                <label>
+                  <span>Nombre de la financiera</span>
+                  <input list="financieras" value={nombreFin} onChange={(e) => setNombreFin(e.target.value)} placeholder="Ej. iPadLock" />
+                  <datalist id="financieras">
+                    {financieras.map((f) => (
+                      <option key={f} value={f} />
+                    ))}
+                  </datalist>
+                </label>
+                <p className="gris" style={{ marginTop: 8 }}>
+                  Esta parte no entra a la caja ni a las ganancias hasta que la financiera te pague. Se anota en Deudas → Financiera.
+                </p>
+                {nombreFin.trim() === '' && <p className="error">Escribe el nombre de la financiera.</p>}
               </div>
             )}
 

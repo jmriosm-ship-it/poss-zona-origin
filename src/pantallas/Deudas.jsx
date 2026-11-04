@@ -3,6 +3,7 @@ import Icono from '../componentes/Iconos.jsx'
 import { useClientes, useVentas, useAbonos, useCompras, useCreditos, guardarCliente, registrarAbono, abonarCompra, pagarCredito } from '../almacen.js'
 import CreditoDetalle, { recordatorioCredito } from '../componentes/CreditoDetalle.jsx'
 import AvisosCuotas from '../componentes/AvisosCuotas.jsx'
+import CobrosFinanciera from '../componentes/CobrosFinanciera.jsx'
 import { dinero, fechaLarga, nuevoId, resumenCredito, saldoCliente, saldoCompra } from '../utils.js'
 import { constanciaAutorizacion } from '../legal.js'
 import { abrirVisor } from '../visor.js'
@@ -140,6 +141,9 @@ export default function Deudas() {
             <button className={tab === 'creditos' ? 'activo' : ''} onClick={() => setTab('creditos')}>
               Créditos ({activos.length})
             </button>
+            <button className={tab === 'financiera' ? 'activo' : ''} onClick={() => setTab('financiera')}>
+              Financiera
+            </button>
             <button className={tab === 'pagar' ? 'activo' : ''} onClick={() => setTab('pagar')}>
               Por pagar ({porPagar.length})
             </button>
@@ -190,6 +194,8 @@ export default function Deudas() {
               </tbody>
             </table>
           ))}
+
+        {tab === 'financiera' && <CobrosFinanciera />}
 
         {tab === 'creditos' &&
           (activos.length === 0 ? (

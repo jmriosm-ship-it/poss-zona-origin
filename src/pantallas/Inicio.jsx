@@ -1,3 +1,4 @@
+import { useFinanciera } from '../almacen.js'
 import Icono from '../componentes/Iconos.jsx'
 import { useProductos, useVentas, useClientes, useCompras, useCreditos, useAbonos, useGastos, useConfig } from '../almacen.js'
 import { useUsuario, puede } from '../auth.js'
@@ -6,7 +7,7 @@ import { cajasRepetidas, imeisVendidosDosVeces } from '../alertas.js'
 import { analizarInventario } from '../inteligente.js'
 import { cuotasPorAvisar } from '../recordatorios.js'
 import { useCajaActual } from '../equipo.js'
-import { dinero, esHoyISO, netoVenta, rangoPeriodo, resumenCredito, saldoCliente, saldoCompra } from '../utils.js'
+import { dinero, esHoyISO, netoVenta, rangoPeriodo, resumenCredito, saldoCliente, saldoCompra, saldoFinanciera } from '../utils.js'
 
 // Pantalla de inicio: los módulos del sistema como tarjetas, cada una con un dato del momento.
 const ICONO_DE = { configuracion: 'ajustes', trabajadores: 'clientes', facturas: 'factura' }
@@ -22,15 +23,17 @@ export default function Inicio({ irA, nube }) {
   const creditos = useCreditos()
   const abonos = useAbonos()
   const gastos = useGastos()
+  const cobrosFin = useFinanciera()
 
   const hoy = ventas.filter((v) => v.estado !== 'anulada' && esHoyISO(v.fecha))
   const vendidoHoy = hoy.reduce((s, v) => s + netoVenta(v), 0)
   const unidades = productos.reduce((s, p) => s + p.variantes.reduce((a, v) => a + v.stock, 0), 0)
   const porCobrar =
     clientes.reduce((s, c) => s + Math.max(0, saldoCliente(c.id, ventas, abonos)), 0) +
-    creditos.filter((c) => c.estado === 'activo').reduce((s, c) => s + resumenCredito(c).saldo, 0)
+    creditos.filter((c) => c.estado === 'activo').reduce((s, c) => s + resumenCredito(c).saldo, 0) +
+    ventas.reduce((s, v) => s + saldoFinanciera(v, cobrosFin), 0)
   const porPagar = compras.reduce((s, c) => s + saldoCompra(c), 0)
-  const mes = calcular(ventas, gastos, rangoPeriodo('mes'), creditos)
+  const mes = calcular(ventas, gastos, rangoPeriodo('mes'), creditos, cobrosFin)
   const repetidos = usuario?.rol === 'admin' ? imeisVendidosDosVeces(ventas) : []
   const porReponer = analizarInventario(productos, ventas)
   const avisosCuotas = usuario?.rol === 'admin' ? cuotasPorAvisar(creditos, clientes, config) : []

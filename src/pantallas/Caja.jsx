@@ -337,7 +337,7 @@ export default function Caja() {
   // La pistola funciona desde cualquier parte de la Caja, aunque el cursor no esté en la búsqueda
   useLector(procesarCodigo, !cobrando && !recibo && !elegir && !catalogo && !cupoAbierto && !sueldoAbierto && !devAbierta && vista === 'vender')
 
-  function confirmarVenta(pagos, cambio, clienteVenta, credito) {
+  function confirmarVenta(pagos, cambio, clienteVenta, credito, extra) {
     if (clienteVenta?.nuevo) {
       guardarCliente({
         id: clienteVenta.id,
@@ -366,6 +366,7 @@ export default function Caja() {
       ...(plan
         ? { credito: { plazo: credito.plazo, tasa: credito.tasa, cuotaValor: plan.cuotaValor, totalCredito: plan.totalCredito, cuotaInicial: credito.cuotaInicial, primeraFecha: credito.primeraFecha, frecuencia: credito.frecuencia || 'mensual' } }
         : {}),
+      ...(extra?.financieraNombre ? { financieraNombre: extra.financieraNombre } : {}),
       vendedorId: usuario?.id,
       vendedorNombre: usuario?.nombre,
     })

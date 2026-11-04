@@ -4,7 +4,7 @@ import Icono from '../componentes/Iconos.jsx'
 import DetalleVenta from '../componentes/DetalleVenta.jsx'
 import FiltroFechas, { rangoDe } from '../componentes/FiltroFechas.jsx'
 import { TicketCierre } from '../componentes/CierreCaja.jsx'
-import { useVentas, useCompras, useAbonos, useCreditos, useGastos, useMovimientos, useClientes, useTurnos } from '../almacen.js'
+import { useVentas, useCompras, useAbonos, useCreditos, useGastos, useMovimientos, useClientes, useTurnos, useFinanciera } from '../almacen.js'
 import { construirMovimientos, GRUPOS, TIPOS } from '../movimientos.js'
 import { aFechaISO, dinero, enRango, fechaHora } from '../utils.js'
 
@@ -29,10 +29,11 @@ export default function Movimientos() {
   const [limite, setLimite] = useState(PASO)
   const [verVenta, setVerVenta] = useState(null)
   const [verTurno, setVerTurno] = useState(null)
+  const financiera = useFinanciera()
 
   const todos = useMemo(
-    () => construirMovimientos({ ventas, compras, abonos, creditos, gastos, movimientos, turnos, clientes }),
-    [ventas, compras, abonos, creditos, gastos, movimientos, turnos, clientes],
+    () => construirMovimientos({ ventas, compras, abonos, creditos, gastos, movimientos, turnos, clientes, financiera }),
+    [ventas, compras, abonos, creditos, gastos, movimientos, turnos, clientes, financiera],
   )
 
   const rango = rangoDe(periodo, desde, hasta)

@@ -66,6 +66,12 @@ export function vencimientoGarantia(fechaIso, dias) {
 
 export const costoVenta = (v) => itemsNetos(v).reduce((s, i) => s + i.costo * i.cantidad, 0)
 
+// ---------- Ventas con financiera ----------
+// La financiera cobra las cuotas al cliente y le paga al local después: esa parte de la venta es "por cobrar" hasta que pague
+export const valorFinanciera = (v) => (v.pagos || []).filter((p) => p.medio === 'Financiera').reduce((s, p) => s + p.valor, 0)
+export const cobradoFinanciera = (v, cobros) => cobros.filter((c) => c.ventaId === v.id).reduce((s, c) => s + c.valor, 0)
+export const saldoFinanciera = (v, cobros) => (v.estado === 'anulada' ? 0 : Math.max(0, valorFinanciera(v) - cobradoFinanciera(v, cobros)))
+
 // ---------- Compras y deudas ----------
 export const pagadoCompra = (c) => c.pagos.reduce((s, p) => s + p.valor, 0)
 export const saldoCompra = (c) => c.total - pagadoCompra(c)

@@ -158,6 +158,7 @@ export const almacenUsuarios = crearAlmacen('zo_usuarios', [])
 export const almacenFacturas = crearAlmacen('zo_facturas', [])
 export const almacenAuditoria = crearAlmacen('zo_auditoria', [])
 export const almacenNomina = crearAlmacen('zo_nomina', [])
+export const almacenFinanciera = crearAlmacen('zo_financiera', [])
 export const almacenConfig = crearAlmacen('zo_config', CONFIG_BASE)
 
 export const useProductos = hook(almacenProductos)
@@ -174,6 +175,7 @@ export const useUsuarios = hook(almacenUsuarios)
 export const useFacturas = hook(almacenFacturas)
 export const useAuditoria = hook(almacenAuditoria)
 export const useNomina = hook(almacenNomina)
+export const useFinanciera = hook(almacenFinanciera)
 export const useConfig = hook(almacenConfig)
 
 // ---------- Productos ----------
@@ -401,6 +403,12 @@ export function registrarDevolucionDinero(motivo, valor) {
   registrarAccion('Devolución de dinero', motivo + ' · $' + valor)
 }
 
+// Pago de una financiera por una venta (tipo 'pago') o diferencia con la que se cierra la cuenta (tipo 'ajuste', por ejemplo una comisión)
+export function registrarCobroFinanciera(venta, valor, nota = '', tipo = 'pago') {
+  registrarAccion(tipo === 'ajuste' ? 'Cerró una cuenta de financiera con diferencia' : 'Pago de financiera', etiquetaVenta(venta) + ' · $' + valor)
+  agregar(almacenFinanciera, { ventaId: venta.id, ventaEtiqueta: etiquetaVenta(venta), financiera: venta.financieraNombre || '', tipo, valor, nota })
+}
+
 // ---------- Cupo y pagos de trabajadores ----------
 export function registrarConsumo(usuario, concepto, valor) {
   registrarAccion('Registró consumo de trabajador', usuario.nombre + ' · ' + concepto + ' · $' + valor)
@@ -438,6 +446,7 @@ export const almacenesNube = {
   facturas: almacenFacturas,
   auditoria: almacenAuditoria,
   nomina: almacenNomina,
+  financiera: almacenFinanciera,
   config: {
     get: () => {
       const c = almacenConfig.leer()
@@ -471,6 +480,7 @@ const TODOS = {
   facturas: almacenFacturas,
   auditoria: almacenAuditoria,
   nomina: almacenNomina,
+  financiera: almacenFinanciera,
   config: almacenConfig,
 }
 
