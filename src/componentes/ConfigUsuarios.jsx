@@ -105,6 +105,7 @@ export default function ConfigUsuarios() {
           <tr>
             <th>Usuario</th>
             <th>Rol</th>
+            <th>Caja</th>
             <th />
           </tr>
         </thead>
@@ -115,6 +116,17 @@ export default function ConfigUsuarios() {
                 <strong>{u.nombre}</strong> {u.id === yo?.id && <span className="chip">Tú</span>}
               </td>
               <td>{nombreRol(u.rol)}</td>
+              <td>
+                {u.rol === 'admin' ? (
+                  <span className="gris">—</span>
+                ) : (
+                  <select value={u.caja || ''} onChange={(e) => guardarUsuario({ ...u, caja: e.target.value })}>
+                    <option value="">La de cada computador</option>
+                    <option value="Caja 1">Caja 1</option>
+                    <option value="Caja 2">Caja 2</option>
+                  </select>
+                )}
+              </td>
               <td className="acciones">
                 {cambiando === u.id ? (
                   <span className="inline-form" style={{ display: 'inline-flex', marginBottom: 0 }}>
@@ -142,7 +154,7 @@ export default function ConfigUsuarios() {
             </tr>,
             permisosDe === u.id && (
               <tr key={u.id + 'p'}>
-                <td colSpan={3}>
+                <td colSpan={4}>
                   <Permisos u={u} />
                 </td>
               </tr>

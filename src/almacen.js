@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { etiquetaVenta, nuevoId, siguienteNumero } from './utils.js'
-import { idEquipo, nombreCajaActual } from './equipo.js'
+import { cajaPorUsuario, idEquipo, nombreCajaActual } from './equipo.js'
 import { CATEGORIAS_BASE } from './categorias.js'
 
 export { cantidadDevuelta } from './utils.js'
@@ -215,7 +215,7 @@ export function registrarVenta(datos) {
   const ventas = almacenVentas.leer()
   const caja = nombreCajaActual()
   const numero = siguienteNumero(ventas, caja)
-  const venta = { ...datos, id: nuevoId(), caja, equipo: idEquipo(), numero, fecha: ahora() }
+  const venta = { ...datos, id: nuevoId(), caja, ...(cajaPorUsuario() ? {} : { equipo: idEquipo() }), numero, fecha: ahora() }
   sumarStock(venta.items, -1)
   almacenVentas.set([venta, ...ventas])
   return venta
@@ -259,12 +259,19 @@ export function anularVenta(ventaId) {
 // ---------- Caja del día ----------
 export const abrirCaja = (inicial, usuario) => {
   registrarAccion('Abrió la caja', 'Base $' + inicial)
-  return agregar(almacenTurnos, { fechaApertura: ahora(), inicial, ...(usuario ? { abrioId: usuario.id, abrioPor: usuario.nombre } : {}) })
+  return agregar(almacenTurnos, { fechaApertura: ahora(), inicial, ...(cajaPorUsuario() ? {} : { equipo: idEquipo() }), ...(usuario ? { abrioId: usuario.id, abrioPor: usuario.nombre } : {}) })
 }
 export function cerrarCaja(id, datos, usuario) {
   registrarAccion('Cerró la caja', 'Esperado $' + datos.esperado + ' · contado $' + datos.contado)
   const quien = usuario ? { cerroId: usuario.id, cerroPor: usuario.nombre } : {}
   almacenTurnos.set(almacenTurnos.leer().map((t) => (t.id === id ? { ...t, ...datos, ...quien, fechaCierre: ahora() } : t)))
+}
+// Corrige la base inicial de una caja abierta; se guarda la base original y queda en el registro de acciones
+export function corregirBaseCaja(id, nueva) {
+  const t = almacenTurnos.leer().find((x) => x.id === id)
+  if (!t || t.fechaCierre) return
+  registrarAccion('Corrigió la base de la caja', '$' + t.inicial + ' → $' + nueva)
+  almacenTurnos.set(almacenTurnos.leer().map((x) => (x.id === id ? { ...x, baseOriginal: x.baseOriginal ?? x.inicial, inicial: nueva } : x)))
 }
 export const registrarMovimiento = (m) => agregar(almacenMovimientos, m)
 

@@ -37,7 +37,16 @@ if (!guardado.nombreCaja || !guardado.idEquipo) guardar(datos)
 
 const oyentes = new Set()
 
-export const nombreCajaActual = () => datos.nombreCaja
+// Caja asignada a la persona que inició sesión (si no tiene, se usa la del computador)
+let cajaSesion = null
+export const cajaPorUsuario = () => Boolean(cajaSesion)
+export function fijarCajaSesion(nombre) {
+  const n = nombre ? String(nombre).trim() : null
+  if ((n || null) === cajaSesion) return
+  cajaSesion = n || null
+  oyentes.forEach((f) => f())
+}
+export const nombreCajaActual = () => cajaSesion || datos.nombreCaja
 export const idEquipo = () => datos.idEquipo
 
 export function guardarNombreCaja(nombre) {
@@ -67,5 +76,5 @@ export const useCajaActual = () =>
       oyentes.add(f)
       return () => oyentes.delete(f)
     },
-    () => datos.nombreCaja,
+    () => cajaSesion || datos.nombreCaja,
   )

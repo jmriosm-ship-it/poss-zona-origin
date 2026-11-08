@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { useUsuarios, almacenUsuarios, fijarActor, registrarAccion } from './almacen.js'
+import { fijarCajaSesion } from './equipo.js'
 
 // Sesión del usuario: vive mientras la ventana siga abierta
 let sesionId = null
@@ -9,11 +10,19 @@ try {
   /* sin sessionStorage */
 }
 const oyentes = new Set()
-fijarActor(almacenUsuarios.leer().find((u) => u.id === sesionId))
+{
+  const u = almacenUsuarios.leer().find((x) => x.id === sesionId)
+  fijarActor(u)
+  fijarCajaSesion(u?.caja)
+}
 
 export function iniciarSesion(id) {
   sesionId = id
-  fijarActor(almacenUsuarios.leer().find((u) => u.id === id))
+  {
+    const u = almacenUsuarios.leer().find((x) => x.id === id)
+    fijarActor(u)
+    fijarCajaSesion(u?.caja) // la caja asignada a esta persona
+  }
   if (id) registrarAccion('Inició sesión')
   try {
     if (id) sessionStorage.setItem('zo_sesion', id)
