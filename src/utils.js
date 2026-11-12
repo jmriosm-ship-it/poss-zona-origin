@@ -74,7 +74,7 @@ export const saldoFinanciera = (v, cobros) => (v.estado === 'anulada' ? 0 : Math
 
 // ---------- Compras y deudas ----------
 export const pagadoCompra = (c) => c.pagos.reduce((s, p) => s + p.valor, 0)
-export const saldoCompra = (c) => c.total - pagadoCompra(c)
+export const saldoCompra = (c) => (c.anulada ? 0 : c.total - pagadoCompra(c))
 
 // Lo que un cliente debe: ventas fiadas, menos devoluciones descontadas de la deuda, menos abonos
 export function saldoCliente(clienteId, ventas, abonos) {

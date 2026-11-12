@@ -11,7 +11,7 @@ export default function HistorialProducto({ producto, onCerrar }) {
   }
 
   const movs = []
-  for (const c of compras)
+  for (const c of compras.filter((x) => !x.anulada))
     for (const i of c.items)
       if (i.productoId === producto.id) movs.push({ fecha: c.fecha, tipo: 'Compra', variante: detalle(i.varianteId), cantidad: i.cantidad, nota: c.proveedor })
 

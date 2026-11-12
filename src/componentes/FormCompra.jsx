@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useProductos } from '../almacen.js'
-import { dinero, imeiConDigitoValido, normalizarSerial, serialValido } from '../utils.js'
+import { dinero, imeiConDigitoValido, normalizarSerial, pagadoCompra, serialValido } from '../utils.js'
 
 // Ventana para registrar una compra de mercancía
-export default function FormCompra({ onGuardar, onCerrar }) {
+export default function FormCompra({ compra, onGuardar, onCerrar }) {
   const productos = useProductos()
-  const [proveedor, setProveedor] = useState('')
-  const [items, setItems] = useState([])
+  const editando = Boolean(compra) // si viene una compra, se edita en vez de registrar una nueva
+  const [proveedor, setProveedor] = useState(compra?.proveedor || '')
+  const [items, setItems] = useState(compra?.items || [])
   const [sel, setSel] = useState({ productoId: '', varianteId: '', cantidad: '1', costo: '' })
   const [imeis, setImeis] = useState([]) // equipos que llegaron (si el producto se controla por IMEI)
   const [imeiTexto, setImeiTexto] = useState('')
@@ -25,7 +26,7 @@ export default function FormCompra({ onGuardar, onCerrar }) {
 
   // IMEI ya registrados en el inventario o ya agregados a esta compra
   const ocupados = new Set([
-    ...productos.flatMap((p) => p.variantes.flatMap((v) => v.imeis || [])),
+    ...productos.flatMap((p) => p.variantes.flatMap((v) => (v.imeis || []).filter((m) => !(compra?.items || []).some((i) => (i.imeis || []).includes(m))))),
     ...items.flatMap((i) => i.imeis || []),
     ...imeis,
   ])
@@ -68,6 +69,10 @@ export default function FormCompra({ onGuardar, onCerrar }) {
     e.preventDefault()
     if (!proveedor.trim()) return setError('Escribe el proveedor.')
     if (items.length === 0) return setError('Agrega al menos una unidad a la compra.')
+    if (editando) {
+      if (total < pagadoCompra(compra)) return setError("Ya se pagaron " + dinero(pagadoCompra(compra)) + ", más que el nuevo total.")
+      return onGuardar({ proveedor: proveedor.trim(), items, total })
+    }
     const abono = Number(pagado) || 0
     if (abono > total) return setError('Lo pagado no puede ser mayor al total.')
     onGuardar({ proveedor: proveedor.trim(), items, total, pagado: abono, medio })
@@ -77,7 +82,7 @@ export default function FormCompra({ onGuardar, onCerrar }) {
     <div className="fondo-modal" onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
       <form className="modal" onSubmit={guardar}>
         <div className="panel-cabeza">
-          <h2>Registrar compra</h2>
+          <h2>{editando ? 'Editar compra' : 'Registrar compra'}</h2>
           <button type="button" className="boton-icono" onClick={onCerrar} aria-label="Cerrar">
             ✕
           </button>
@@ -192,6 +197,11 @@ export default function FormCompra({ onGuardar, onCerrar }) {
           <strong>{dinero(total)}</strong>
         </div>
 
+        {editando ? (
+          <p className="gris">
+            Pagado hasta ahora: {dinero(pagadoCompra(compra))}. Los pagos no cambian al editar; los nuevos se registran en Deudas → Por pagar.
+          </p>
+        ) : (
         <div className="inline-form">
           <span className="gris">Pagado ahora</span>
           <input type="number" min="0" placeholder="0" value={pagado} onChange={(e) => setPagado(e.target.value)} />
@@ -203,7 +213,8 @@ export default function FormCompra({ onGuardar, onCerrar }) {
             Pagar todo
           </button>
         </div>
-        <p className="gris">Lo que no pagues ahora queda como deuda con el proveedor ({dinero(Math.max(0, total - (Number(pagado) || 0)))}).</p>
+        )}
+        {!editando && <p className="gris">Lo que no pagues ahora queda como deuda con el proveedor ({dinero(Math.max(0, total - (Number(pagado) || 0)))}).</p>}
 
         {error && <p className="error">{error}</p>}
 
@@ -212,7 +223,7 @@ export default function FormCompra({ onGuardar, onCerrar }) {
             Cancelar
           </button>
           <button type="submit" className="btn oscuro">
-            Guardar compra
+            {editando ? "Guardar cambios" : "Guardar compra"}
           </button>
         </div>
       </form>

@@ -24,7 +24,7 @@ export function resumenTurno(turno, ventas, abonos, compras, movimientos, credit
   const devEfectivo = suma(devoluciones.filter((d) => d.medio === 'Efectivo'))
   const pagosCredito = creditos.flatMap((c) => c.pagos)
   const abonosEfectivo = suma([...abonos, ...pagosCredito].filter((a) => dentro(a.fecha) && mia(a) && a.medio === 'Efectivo'))
-  const pagoProveedores = suma(compras.flatMap((c) => c.pagos).filter((p) => dentro(p.fecha) && mia(p) && p.medio === 'Efectivo'))
+  const pagoProveedores = suma(compras.filter((c) => !c.anulada).flatMap((c) => c.pagos).filter((p) => dentro(p.fecha) && mia(p) && p.medio === 'Efectivo'))
   const movs = movimientos.filter((m) => dentro(m.fecha) && mia(m))
   const ingresos = suma(movs.filter((m) => m.tipo === 'ingreso'))
   const egresos = suma(movs.filter((m) => m.tipo === 'egreso'))

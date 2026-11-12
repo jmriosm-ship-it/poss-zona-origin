@@ -324,6 +324,56 @@ export function registrarCompra(datos) {
   ])
 }
 
+// Qué cambia en el inventario al editar una compra: solo la diferencia (unidades nuevas, quitadas e IMEI)
+function diferenciaItems(viejos, nuevos) {
+  const sumar = []
+  const restar = []
+  for (const id of new Set([...viejos, ...nuevos].map((i) => i.varianteId))) {
+    const v = viejos.filter((i) => i.varianteId === id)
+    const n = nuevos.filter((i) => i.varianteId === id)
+    const imv = v.flatMap((i) => i.imeis || [])
+    const imn = n.flatMap((i) => i.imeis || [])
+    if (imv.length || imn.length) {
+      const quitar = imv.filter((m) => !imn.includes(m))
+      const poner = imn.filter((m) => !imv.includes(m))
+      if (quitar.length) restar.push({ varianteId: id, cantidad: quitar.length, imeis: quitar })
+      if (poner.length) sumar.push({ varianteId: id, cantidad: poner.length, imeis: poner })
+    } else {
+      const d = n.reduce((s, i) => s + i.cantidad, 0) - v.reduce((s, i) => s + i.cantidad, 0)
+      if (d > 0) sumar.push({ varianteId: id, cantidad: d })
+      else if (d < 0) restar.push({ varianteId: id, cantidad: -d })
+    }
+  }
+  return { sumar, restar }
+}
+
+// Edita una compra (proveedor, unidades, costos): el inventario se ajusta solo en lo que cambió. Los pagos no se tocan.
+export function editarCompra(id, datos) {
+  const c = almacenCompras.leer().find((x) => x.id === id)
+  if (!c || c.anulada) return
+  registrarAccion('Editó una compra', c.proveedor + ' · $' + c.total + ' → $' + datos.total)
+  const { sumar, restar } = diferenciaItems(c.items, datos.items)
+  sumarStock(restar, -1)
+  sumarStock(sumar, 1)
+  almacenProductos.set(
+    almacenProductos.leer().map((p) => {
+      const propios = datos.items.filter((i) => i.productoId === p.id)
+      return propios.length ? { ...p, costo: propios[propios.length - 1].costo } : p
+    }),
+  )
+  almacenCompras.set(almacenCompras.leer().map((x) => (x.id === id ? { ...x, proveedor: datos.proveedor, items: datos.items, total: datos.total } : x)))
+}
+
+// Anula una compra registrada por error: se quita el stock (y los IMEI) que había sumado y deja de contar como deuda.
+// La compra queda en el historial marcada como anulada. El costo del producto no se revierte.
+export function anularCompra(id) {
+  const c = almacenCompras.leer().find((x) => x.id === id)
+  if (!c || c.anulada) return
+  registrarAccion('Anuló una compra', c.proveedor + ' · $' + c.total)
+  sumarStock(c.items, -1)
+  almacenCompras.set(almacenCompras.leer().map((x) => (x.id === id ? { ...x, anulada: true, fechaAnulacion: ahora() } : x)))
+}
+
 export function abonarCompra(compraId, valor, medio) {
   almacenCompras.set(
     almacenCompras

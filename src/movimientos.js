@@ -73,7 +73,7 @@ export function construirMovimientos({ ventas, compras, abonos, creditos, gastos
     }
   }
 
-  for (const c of compras) {
+  for (const c of compras.filter((x) => !x.anulada)) {
     agregar('compra', c.id, c.fecha, `${c.proveedor} · ${resumen(c.items)}`, c.total, { quien: '' })
     for (const p of c.pagos) agregar('pagoProveedor', p.id, p.fecha, `${c.proveedor} · ${p.medio}`, p.valor)
   }
