@@ -460,6 +460,12 @@ export function registrarDevolucionDinero(motivo, valor) {
   registrarAccion('Devolución de dinero', motivo + ' · $' + valor)
 }
 
+// Salida de efectivo de la caja con motivo (retiro). Resta del efectivo esperado; no es un gasto ni toca las ganancias.
+export function registrarSalidaDinero(motivo, valor) {
+  agregar(almacenMovimientos, { tipo: 'egreso', valor, motivo })
+  registrarAccion('Sacó dinero de la caja', motivo + ' · $' + valor)
+}
+
 // Pago de una financiera por una venta (tipo 'pago') o diferencia con la que se cierra la cuenta (tipo 'ajuste', por ejemplo una comisión)
 export function registrarCobroFinanciera(venta, valor, nota = '', tipo = 'pago') {
   registrarAccion(tipo === 'ajuste' ? 'Cerró una cuenta de financiera con diferencia' : 'Pago de financiera', etiquetaVenta(venta) + ' · $' + valor)

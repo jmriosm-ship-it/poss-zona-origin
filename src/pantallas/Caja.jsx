@@ -10,6 +10,7 @@ import AbrirCajaModal from '../componentes/AbrirCajaModal.jsx'
 import SacarCupo from '../componentes/SacarCupo.jsx'
 import PagarSueldo from '../componentes/PagarSueldo.jsx'
 import DevolucionCaja from '../componentes/DevolucionCaja.jsx'
+import SacarDinero from '../componentes/SacarDinero.jsx'
 import CajasResumen from '../componentes/CajasResumen.jsx'
 import HistorialCierres from '../componentes/HistorialCierres.jsx'
 import BuscadorProductos from '../componentes/BuscadorProductos.jsx'
@@ -53,6 +54,7 @@ export default function Caja() {
   const [cupoAbierto, setCupoAbierto] = useState(false)
   const [sueldoAbierto, setSueldoAbierto] = useState(false)
   const [devAbierta, setDevAbierta] = useState(false)
+  const [salidaAbierta, setSalidaAbierta] = useState(false)
   const [descOk, setDescOk] = useState(0) // descuento autorizado con el PIN del administrador
   const [pidePin, setPidePin] = useState(false)
   const [vista, setVista] = useState('vender') // 'vender' o 'caja' (la caja del día completa)
@@ -144,6 +146,11 @@ export default function Caja() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l' && !cobrando && !recibo) {
         e.preventDefault()
         setDevAbierta(true)
+      }
+      // Ctrl G: sacar dinero de la caja (pago a proveedor u otro motivo)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g' && !cobrando && !recibo) {
+        e.preventDefault()
+        setSalidaAbierta(true)
       }
       // Ctrl M: pagar sueldo (solo el administrador)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm' && usuario?.rol === 'admin' && !cobrando && !recibo) {
@@ -335,7 +342,7 @@ export default function Caja() {
   }
 
   // La pistola funciona desde cualquier parte de la Caja, aunque el cursor no esté en la búsqueda
-  useLector(procesarCodigo, !cobrando && !recibo && !elegir && !catalogo && !cupoAbierto && !sueldoAbierto && !devAbierta && vista === 'vender')
+  useLector(procesarCodigo, !cobrando && !recibo && !elegir && !catalogo && !cupoAbierto && !sueldoAbierto && !devAbierta && !salidaAbierta && vista === 'vender')
 
   function confirmarVenta(pagos, cambio, clienteVenta, credito, extra) {
     if (clienteVenta?.nuevo) {
@@ -476,6 +483,9 @@ export default function Caja() {
             </button>
             <button className="btn" onClick={() => setDevAbierta(true)}>
               Devolución (Ctrl L)
+            </button>
+            <button className="btn" onClick={() => setSalidaAbierta(true)}>
+              Sacar dinero (Ctrl G)
             </button>
             {usuario?.rol === 'admin' && (
               <button className="btn" onClick={() => setSueldoAbierto(true)}>
@@ -652,6 +662,7 @@ export default function Caja() {
       {cupoAbierto && <SacarCupo onCerrar={() => setCupoAbierto(false)} />}
       {sueldoAbierto && <PagarSueldo onCerrar={() => setSueldoAbierto(false)} />}
       {devAbierta && <DevolucionCaja onCerrar={() => setDevAbierta(false)} />}
+      {salidaAbierta && <SacarDinero onCerrar={() => setSalidaAbierta(false)} />}
       {cobrando && (
         <Cobro
           total={total}
